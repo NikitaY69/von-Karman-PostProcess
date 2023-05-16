@@ -1,4 +1,4 @@
-# Manager for SFEMaNS runs and statistical analysis of turbulence
+# Manager for SFEMaNS von Karman flow runs and statistical analysis of turbulence
 
 ## Installation
 [...]
