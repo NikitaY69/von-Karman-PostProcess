@@ -6,7 +6,8 @@
 ## Examples
 
 ### Database 
-*The whole database part has been coded by Rémi Bousquet. I've just implemented it in a more general script.*
+*The database methods have been written by Rémi Bousquet.*
+*I've just reframed them to be object-oriented.*
 
 [...]
 
