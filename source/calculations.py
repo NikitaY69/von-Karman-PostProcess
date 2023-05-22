@@ -20,7 +20,7 @@ class calculations(database):
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
 
         self.base_chunk = self.db['u']['field'].chunksize
-        self.global_weight = self.duplicate(self.db['v_weight'], self.dims).rechunk(self.base_chunk)
+        # self.global_weight = self.duplicate(self.db['v_weight'], self.dims).rechunk(self.base_chunk)
 
     def norm(self, key):
         # computes the norm of a field present in the db
@@ -34,8 +34,8 @@ class calculations(database):
         I need to rethink the database so that computed quantities can also be stored.
         For example, when you compute n-th moments, it will be stupid to compute
         the mean for each computation ...
+        Field must be a 1-component dask array.
         '''
-        # field must be a 1-component dask array
         self.mean_type_check()
 
         if type == 'spatial':
@@ -85,30 +85,41 @@ class calculations(database):
     # vor visualization, it is better to scale logarithmically
 
     @staticmethod
-    def duplicate(field, shape, type=None):
-        '''
-        WARNING. RECHUNK MANDATORY FOR COMPUTING EFFICIENCY. TO DO ASAP.
-        '''
-        # this function is useful to reshape the weight array properly to
-        # a field array
-        # type affects the direction in which you are about to add dimensions
-        p = np.product(shape[:-1])
-        field2 = da.vstack(da.from_array([da.from_array(field)]*p))
-        if type == 'spatial':
-            field2 = field2.T
-        return field2.reshape(shape)
-    
+    def duplicate(field, target):
+        # this function is useful to reshape a field properly to
+        # a target array (for the purpose of dealing with same dimensions)
+        # finding dimensions on which to copy initial array
+        f1 = field.shape
+        f2 = target.shape
+        ax = []
+        for i, d in enumerate(f2):
+            if d not in f1:
+                ax.append(i)
+        ax = tuple(ax)
+        field2 = da.expand_dims(field, axis=ax)
+        
+        # duplicating
+        for i in ax:
+            field2 = da.repeat(field2, f2[i], axis=i)
+
+        return field2
+        
+    # add function to automatically rechunk an object based on the axis the initial
+    # object was duplicated
+
     def key_check(self, key):
         # checks if a key is present in the db
         if key not in self.db.keys():
             raise ValueError('This key does not belong to the database.\n\
-                              Please look at self.db.keys().')
+                              You cannot compute the norm of a field external to the db\
+                              (for example, a field you manually builded).\n\
+                              Please check self.db.keys().')
         else:
             pass
     
     def mean_type_check(self, type):
         if type not in ['spatial', 'temporal', 'both']:
-            raise ValueError('This type of average is not implemented. Please\
+            raise NotImplementedError('This type of average is not implemented. Please\
                               select one in ["spatial", "temporal", "both"].')
         else:
             pass
