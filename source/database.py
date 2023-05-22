@@ -17,7 +17,7 @@ class database():
         '''
         try:
             # directly loading
-            self.db = self.load_db(src)
+            self.db = self.load(src)
         except:
             # if not, create a first db
             self.raw_path = src
@@ -32,7 +32,7 @@ class database():
             space = kwargs.get('space', 'phys') # 'phys' or 'fourier'
             self.make(sfx, dict_name, space)
 
-    def load_db(self, src):
+    def load(self, src):
         return pickle.load(open(src, 'rb'))
 
     def make(self, sfx, dict_name, space):
@@ -142,7 +142,7 @@ class database():
         ---------------------------------------
         """
         data = np.memmap(filename, mode='r', shape=shape, dtype=dtype, offset=offset,order="F")
-        if slice !=  None :
+        if slice !=  None:
             return data[slice]
         else :
             return data

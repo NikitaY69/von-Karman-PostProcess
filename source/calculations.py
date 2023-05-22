@@ -15,11 +15,11 @@ class calculations(database):
         All these init definitions can already be given in database..
         '''
         database.__init__(self, src)
-        dims = list(self.db['omega']['field'].shape) # omega will always be present in any db
+        dims = list(self.db['u']['field'].shape) # u will always be present in any db
         dims[0] = int(dims[0]/3)
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
 
-        self.base_chunk = self.db['omega']['field'].chunksize
+        self.base_chunk = self.db['u']['field'].chunksize
         self.global_weight = self.duplicate(self.db['v_weight'], self.dims).rechunk(self.base_chunk)
 
     def norm(self, key):
