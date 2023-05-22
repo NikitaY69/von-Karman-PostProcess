@@ -11,8 +11,6 @@ class calculations(database):
         Reminder: 3-components fields are concatenations of the base ones.
         All the calculations here only compute a dask task. You need to compute
         them afterwards.
-        Note for improvement:
-        All these init definitions can already be given in database..
         '''
         database.__init__(self, src)
         dims = list(self.db['u']['field'].shape) # u will always be present in any db
@@ -20,7 +18,6 @@ class calculations(database):
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
 
         self.base_chunk = self.db['u']['field'].chunksize
-        # self.global_weight = self.duplicate(self.db['v_weight'], self.dims).rechunk(self.base_chunk)
 
     def norm(self, key):
         # computes the norm of a field present in the db
@@ -30,20 +27,24 @@ class calculations(database):
     def mean(self, field, type):
         '''
         Computing of a mean quantity along a certain axis depending on the type of averaging.
+        field must have the same structure as typical objects of the db (ie self.dims).
+        If field was built on a peculiar slicing, the input must still respect self.dims
+        (tip: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :])
+
         Note for improvement:
         I need to rethink the database so that computed quantities can also be stored.
-        For example, when you compute n-th moments, it will be stupid to compute
+        For example, when you compute n-th non-raw moments, it will be stupid to compute
         the mean for each computation ...
         Field must be a 1-component dask array.
         '''
-        self.mean_type_check()
-
-        if type == 'spatial':
-            s = (2,3) # planes and coordinates
-            w = self.duplicate(self.db['v_weight'], field.shape)
-        elif type == 'temporal':
-            s = 1     # time axis
-            w = None            
+        self.mean_type_check(type)
+ 
+        s = 1           # T axis
+        w = None    
+        if type != 'temporal':
+            s = (2,3)   # P and N axis
+            w = self.duplicate(da.from_array(self.db['v_weight']), field)
+           
         avg = da.average(field, axis=s, weights=w)
         if type != 'both':
             return avg
@@ -51,27 +52,20 @@ class calculations(database):
             # if its 'both', you need to temporally average the spatial average
             return da.average(avg, axis=None, weights=None)
     
-    def nth_moment(self, field, type, n):
+    def moment(self, field, type, n, raw=True):
         # same principe as in mean function
-        self.mean_type_check()
-        avg = self.mean(field, type)
+        self.mean_type_check(type)
 
-        if type == 'spatial':
-            s = (2,3) # planes and coordinates
-            w = self.duplicate(self.db['v_weight'], field.shape)
-            avg2 = self.duplicate(avg, field.shape, type)
-        elif type == 'temporal':
-            s = 1     # time axis
-            w = None
-            avg2 = self.duplicate(avg, field.shape, type)           
-
-        moment = da.average((field-avg)**n, axis=s, weights=w)
-        if type != 'both':
-            return moment
+        if raw:
+            avg = 0
         else:
-            # if its 'both', you need to temporally average the spatial average
-            return da.average(moment, axis=None, weights=None)
-        
+            avg = self.mean(field, type)
+            avg = self.duplicate(avg, field)
+
+        to_compute = (field - avg)**n
+
+        return self.mean(to_compute, type)
+
     '''
     For the pdfs, fields must be scalar ones having SAME shape.
     '''
@@ -103,7 +97,7 @@ class calculations(database):
             field2 = da.repeat(field2, f2[i], axis=i)
 
         return field2
-        
+
     # add function to automatically rechunk an object based on the axis the initial
     # object was duplicated
 
