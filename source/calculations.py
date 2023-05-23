@@ -68,6 +68,8 @@ class calculations(database):
 
     '''
     For the pdfs, fields must be scalar ones having SAME shape.
+    I probably need to study the importance of the choice of bins, it apparently
+    highly affects the pdfs.
     '''
     def pdf(self, field, bins=1000, range=None):
         # histogram range should be offseted case by case after visualization
@@ -76,30 +78,71 @@ class calculations(database):
         if range is None:
             range = self.get_range(field)
 
-        return da.histogram(field, bins=bins, range=range, weights=w, density=True)
+        H, edges = da.histogram(field, bins=bins, range=range, weights=w, density=True)
+        H = H.rechunk(bins//2.5)
+        # there is probably a more clever way to rechunk ...
 
-    def joint_pdf(self, field1, field2, bins=1000, range=None, log=True):
+        return H, edges
+
+    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True):
         w = self.duplicate(da.from_array(self.db['v_weight']), field1).rechunk(
                            self.base_chunk)
+        fields = [field1, field2]
+
+        # flattening the data
         w_l = da.ravel(w)
         f1_l = da.ravel(field1)
         f2_l = da.ravel(field2)
 
-        if range is None:
-            range1 = self.get_range(field1)
-            range2 = self.get_range(field2)
-            range = [range1, range2]
+        for i, r in enumerate(ranges):
+            if r is None: 
+                ranges[i] = self.get_range(fields[i])
+            else:
+                ranges[i] = range[i]
         
-        H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=range, \
+        H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
                               weights=w_l**2, density=True)
+        H = (H.T).rechunk(bins//2.5)
+        # there is probably a more clever way to rechunk ...
 
         if not log:
-            return H, xedges, yedges
+            return H, [xedges, yedges]
         else:
-            H = H.rechunk(bins//2.5)   # to probably improve (it fits for 1000)
-            return da.log10(H), xedges, yedges
+            return da.log10(H), [xedges, yedges]
         
+    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True):
+        # computing the marginal pdfs
+        H1, edges1 = self.pdf(field1, bins, ranges[0])
+        H2, edges2 = self.pdf(field2, bins, ranges[1])
+
+        # Repeating on the whole meshgrid
+        H1_f = da.expand_dims(H1, axis=1)
+        H2_f = da.expand_dims(H2, axis=0)
+        H1_f = da.repeat(H1_f, len(H1), axis=1).rechunk(bins//2.5)
+        H2_f = da.repeat(H2_f, len(H2), axis=0).rechunk(bins//2.5)
+
+        H = (H1_f*H2_f).T
+        if log:
+            H = da.log10(H)
+
+        return H, [edges1, edges2], [H1, H2]
+
+    def correlations(self, field1, field2, bins=1000, ranges=[None,None], log=True\
+                     all=False):
+        args = (field1, field2, bins, ranges, False)
+        joint = self.joint_pdf(*args)
+        marginal = self.marginal_joint_pdf(*args)
+        C = joint[0]/marginal[0]
+        if log:
+            C = da.log10(C)
         
+        if not all:
+            return C, joint[1] 
+            # Corr - [edges]
+        else:
+            return C, joint[1], joint[0], [marginal[0], marginal[2]]
+            # Corr - [edges] - joint_pdf - [marginal_joint_pdf, marginal_pdfs]
+
     @staticmethod
     def duplicate(field, target):
         # this function is useful to reshape a field properly to
