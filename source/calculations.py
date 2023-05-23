@@ -70,12 +70,20 @@ class calculations(database):
     For the pdfs, fields must be scalar ones having SAME shape.
     '''
     def pdf(self, field, bins=1000, range=None):
-        # histogram range should be reajusted case by case after visualization
-        # for now on, it is just [min, max]
-        return da.histogram(field, bins=bins, range=range, weights=self.global_weight, density=True)
-    
+        # histogram range should be offseted case by case after visualization
+        w = self.duplicate(da.from_array(self.db['v_weight']), field).rechunk(
+                           self.base_chunk)
+        if range is None:
+            fmin = field.min().compute()
+            fmax = field.max().compute()
+            range = [fmin, fmax]
+
+        return da.histogram(field, bins=bins, range=range, weights=w, density=True)
+
     def joint_pdf(self, field1, field2, bins=1000, range=None):
-        return da.histogram2d(field1, field2, range=None, weights=self.global_weight**2, density=True)
+        w = self.duplicate(da.from_array(self.db['v_weight']), field1)
+        return da.histogram2d(field1, field2, bins=bins, range=None, \
+                              weights=w**2, density=True)
     # vor visualization, it is better to scale logarithmically
 
     @staticmethod
