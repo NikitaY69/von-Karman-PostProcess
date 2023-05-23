@@ -72,7 +72,7 @@ class database():
             # get dask view of the field shape is (D,T,P,Ntot), domains have been concatenated
             field = self.mmap_phys_field(path_to_field,files,data_struct)
             
-            #spatial sort
+            # spatial sort
             if sum(N) == sum(vN_per_S):
                 # mesh is velocity mesh
                 field = (field.T[v_args[sorting_method]]).T
