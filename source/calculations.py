@@ -98,7 +98,7 @@ class calculations(database):
             if r is None: 
                 ranges[i] = self.get_range(fields[i])
             else:
-                ranges[i] = range[i]
+                ranges[i] = ranges[i]
         
         H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
                               weights=w_l**2, density=True)
@@ -127,7 +127,7 @@ class calculations(database):
 
         return H, [edges1, edges2], [H1, H2]
 
-    def correlations(self, field1, field2, bins=1000, ranges=[None,None], log=True\
+    def correlations(self, field1, field2, bins=1000, ranges=[None,None], log=True,\
                      all=False):
         args = (field1, field2, bins, ranges, False)
         joint = self.joint_pdf(*args)
