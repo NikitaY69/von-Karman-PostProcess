@@ -74,18 +74,32 @@ class calculations(database):
         w = self.duplicate(da.from_array(self.db['v_weight']), field).rechunk(
                            self.base_chunk)
         if range is None:
-            fmin = field.min().compute()
-            fmax = field.max().compute()
-            range = [fmin, fmax]
+            range = self.get_range(field)
 
         return da.histogram(field, bins=bins, range=range, weights=w, density=True)
 
-    def joint_pdf(self, field1, field2, bins=1000, range=None):
-        w = self.duplicate(da.from_array(self.db['v_weight']), field1)
-        return da.histogram2d(field1, field2, bins=bins, range=None, \
-                              weights=w**2, density=True)
-    # vor visualization, it is better to scale logarithmically
+    def joint_pdf(self, field1, field2, bins=1000, range=None, log=True):
+        w = self.duplicate(da.from_array(self.db['v_weight']), field1).rechunk(
+                           self.base_chunk)
+        w_l = da.ravel(w)
+        f1_l = da.ravel(field1)
+        f2_l = da.ravel(field2)
 
+        if range is None:
+            range1 = self.get_range(field1)
+            range2 = self.get_range(field2)
+            range = [range1, range2]
+        
+        H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=range, \
+                              weights=w_l**2, density=True)
+
+        if not log:
+            return H, xedges, yedges
+        else:
+            H = H.rechunk(bins//2.5)   # to probably improve (it fits for 1000)
+            return da.log10(H), xedges, yedges
+        
+        
     @staticmethod
     def duplicate(field, target):
         # this function is useful to reshape a field properly to
@@ -108,6 +122,13 @@ class calculations(database):
 
     # add function to automatically rechunk an object based on the axis the initial
     # object was duplicated
+
+    @staticmethod
+    def get_range(A):
+        # A must be a dask array!
+        Amin = A.min().compute()
+        Amax = A.max().compute()
+        return [Amin, Amax]
 
     def key_check(self, key):
         # checks if a key is present in the db
