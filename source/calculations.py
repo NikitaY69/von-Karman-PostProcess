@@ -46,12 +46,12 @@ class calculations(database):
             s = (2,3)   # P and N axis
             w = self.duplicate(da.from_array(self.db['v_weight']), field).rechunk(
                                self.base_chunk)
-        avg = da.average(field, axis=s, weights=w)
+        avg = da.average(field, axis=s, weights=w, keepdims=True)
         if type != 'both':
             return avg
         else:
             # if its 'both', you need to temporally average the spatial average
-            return da.average(avg, axis=None, weights=None)
+            return da.average(avg, axis=None, weights=None, keepdims=True)
     
     def moment(self, field, type, n, raw=True):
         # same principle as in mean function
