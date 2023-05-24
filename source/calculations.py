@@ -6,11 +6,13 @@ import dask
 class calculations(database):
     def __init__(self, src):
         '''
-        This class incorporates useful computations related to the statistics of a database.
+        This class incorporates useful computations related to the statistics of 
+        1-component fields.
         Typical dimensions for 1-component fields are (1, T, P, N_P)
-        Reminder: 3-components fields are concatenations of the base ones.
-        All the calculations here only compute a dask task. You need to compute
-        them afterwards.
+        (Reminder: 3-components fields are concatenations of the base ones)
+        All the calculations here only yield a dask task. You need to compute
+        them afterwards. 
+        The parallelization is automatically made in the dask graphs/chunks (I think).
         '''
         database.__init__(self, src)
         dims = list(self.db['u']['field'].shape) # u will always be present in any db
@@ -30,12 +32,11 @@ class calculations(database):
         field must have the same structure as typical objects of the db (ie self.dims).
         If field was built on a peculiar slicing, the input must still respect self.dims
         (tip: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :])
-
+        
         Note for improvement:
         I need to rethink the database so that computed quantities can also be stored.
         For example, when you compute n-th non-raw moments, it will be stupid to compute
         the mean for each computation ...
-        Field must be a 1-component dask array.
         '''
         self.mean_type_check(type)
  
@@ -43,8 +44,8 @@ class calculations(database):
         w = None    
         if type != 'temporal':
             s = (2,3)   # P and N axis
-            w = self.duplicate(da.from_array(self.db['v_weight']), field)
-           
+            w = self.duplicate(da.from_array(self.db['v_weight']), field).rechunk(
+                               self.base_chunk)
         avg = da.average(field, axis=s, weights=w)
         if type != 'both':
             return avg
@@ -53,7 +54,7 @@ class calculations(database):
             return da.average(avg, axis=None, weights=None)
     
     def moment(self, field, type, n, raw=True):
-        # same principe as in mean function
+        # same principle as in mean function
         self.mean_type_check(type)
 
         if raw:
@@ -68,8 +69,9 @@ class calculations(database):
 
     '''
     For the pdfs, fields must be scalar ones having SAME shape.
-    I probably need to study the importance of the choice of bins, it apparently
-    highly affects the pdfs.
+    TO-DO:
+    - Study the importance of the choice of bins
+    - Rechunk more cleverly
     '''
     def pdf(self, field, bins=1000, range=None):
         # histogram range should be offseted case by case after visualization
@@ -144,9 +146,10 @@ class calculations(database):
             # Corr - [edges] - joint_pdf - [marginal_joint_pdf, marginal_pdfs]
 
     @staticmethod
-    def duplicate(field, target):
+    def duplicate(field, target, rechunk=False):
         # this function is useful to reshape a field properly to
         # a target array (for the purpose of dealing with same dimensions)
+
         # finding dimensions on which to copy initial array
         f1 = field.shape
         f2 = target.shape
@@ -156,15 +159,16 @@ class calculations(database):
                 ax.append(i)
         ax = tuple(ax)
         field2 = da.expand_dims(field, axis=ax)
-        
+        if rechunk:
+            # new_chunk = tuple([1 if d not in ax else self.base_chunk[d] for d in range(4)])
+            new_chunk = field2.shape
+            field2 = field2.rechunk(new_chunk)
         # duplicating
         for i in ax:
             field2 = da.repeat(field2, f2[i], axis=i)
 
         return field2
-
-    # add function to automatically rechunk an object based on the axis the initial
-    # object was duplicated
+        
 
     @staticmethod
     def get_range(A):
