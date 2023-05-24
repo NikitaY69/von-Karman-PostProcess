@@ -44,8 +44,7 @@ class calculations(database):
         w = None    
         if type != 'temporal':
             s = (2,3)   # P and N axis
-            w = self.duplicate(da.from_array(self.db['v_weight']), field).rechunk(
-                               self.base_chunk)
+            w = self.duplicate(da.from_array(self.db['v_weight']), field)
         avg = da.average(field, axis=s, weights=w, keepdims=True)
         if type != 'both':
             return avg
@@ -75,8 +74,7 @@ class calculations(database):
     '''
     def pdf(self, field, bins=1000, range=None):
         # histogram range should be offseted case by case after visualization
-        w = self.duplicate(da.from_array(self.db['v_weight']), field).rechunk(
-                           self.base_chunk)
+        w = self.duplicate(da.from_array(self.db['v_weight']), field)
         if range is None:
             range = self.get_range(field)
 
@@ -87,8 +85,7 @@ class calculations(database):
         return H, edges
 
     def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True):
-        w = self.duplicate(da.from_array(self.db['v_weight']), field1).rechunk(
-                           self.base_chunk)
+        w = self.duplicate(da.from_array(self.db['v_weight']), field1)
         fields = [field1, field2]
 
         # flattening the data
@@ -166,6 +163,8 @@ class calculations(database):
         # duplicating
         for i in ax:
             field2 = da.repeat(field2, f2[i], axis=i)
+
+        field2 = field2.rechunk(self.base_chunk)
 
         return field2
         
