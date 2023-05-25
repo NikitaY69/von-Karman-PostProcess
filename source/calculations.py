@@ -142,8 +142,7 @@ class calculations(database):
             return C, joint[1], joint[0], [marginal[0], marginal[2]]
             # Corr - [edges] - joint_pdf - [marginal_joint_pdf, marginal_pdfs]
 
-    @staticmethod
-    def duplicate(field, target, rechunk=False):
+    def duplicate(self, field, target, rechunk=False):
         # this function is useful to reshape a field properly to
         # a target array (for the purpose of dealing with same dimensions)
 
