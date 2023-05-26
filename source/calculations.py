@@ -96,8 +96,6 @@ class calculations(database):
         for i, r in enumerate(ranges):
             if r is None: 
                 ranges[i] = self.get_range(fields[i])
-            else:
-                ranges[i] = ranges[i]
         
         H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
                               weights=w_l**2, density=True)
@@ -167,7 +165,6 @@ class calculations(database):
 
         return field2
         
-
     @staticmethod
     def get_range(A):
         # A must be a dask array!
@@ -182,12 +179,8 @@ class calculations(database):
                               You cannot compute the norm of a field external to the db\
                               (for example, a field you manually builded).\n\
                               Please check self.db.keys().')
-        else:
-            pass
     
     def mean_type_check(self, type):
         if type not in ['spatial', 'temporal', 'both']:
             raise NotImplementedError('This type of average is not implemented. Please\
                               select one in ["spatial", "temporal", "both"].')
-        else:
-            pass
