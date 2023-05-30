@@ -5,6 +5,7 @@ import numpy as np
 import dask
 import dask.array as da
 import pickle
+import cupy as cp
 
 class database():
     '''
@@ -138,10 +139,10 @@ class database():
             a subchunk from the file
 
         ---------------------------------------
-        note : if no view can be created memmap returns an ndarray (!!!MEMORY!!!)i
+        note : if no view can be created memmap returns an ndarray (!!!MEMORY!!!)
         ---------------------------------------
         """
-        data = np.memmap(filename, mode='r', shape=shape, dtype=dtype, offset=offset,order="F")
+        data = cp.load(filename, mmap_load='r') # shape=shape, dtype=dtype, offset=offset,order="F")
         if slice !=  None:
             return data[slice]
         else :
