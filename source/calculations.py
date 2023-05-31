@@ -72,66 +72,99 @@ class calculations(database):
     - Study the importance of the choice of bins
     - Rechunk more cleverly
     '''
-    def pdf(self, field, bins=1000, range=None):
+    def pdf(self, field, bins=1000, range=None, delayed=True):
+        '''
+        If not delayed, fields must already be computed!
+        '''
         # histogram range should be offseted case by case after visualization
         w = self.duplicate(da.from_array(self.db['v_weight']), field)
         if range is None:
-            range = self.get_range(field)
-
-        H, edges = da.histogram(field, bins=bins, range=range, weights=w, density=True)
-        H = H.rechunk(bins//2.5)
+            range = self.get_range(field, delayed)
+        if not delayed:
+            w = w.compute()
+            H, edges = np.histogram(field, bins=bins, range=range, weights=w, density=True)
+        else:
+            H, edges = da.histogram(field, bins=bins, range=range, weights=w, density=True)
+        # H = H.rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
 
         return H, edges
 
-    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True):
+    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True, delayed=True):
+        '''
+        If not delayed, fields must already be computed!
+        '''
         w = self.duplicate(da.from_array(self.db['v_weight']), field1)
         fields = [field1, field2]
-
-        # flattening the data
-        w_l = da.ravel(w)
-        f1_l = da.ravel(field1)
-        f2_l = da.ravel(field2)
-
         for i, r in enumerate(ranges):
             if r is None: 
-                ranges[i] = self.get_range(fields[i])
-        
-        H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
-                              weights=w_l**2, density=True)
-        H = (H.T).rechunk(bins//2.5)
-        # there is probably a more clever way to rechunk ...
+                ranges[i] = self.get_range(fields[i], delayed)
 
-        if not log:
-            return H, [xedges, yedges]
+        # flattening the data
+        if delayed:
+            w_l = da.ravel(w)
+            f1_l = da.ravel(field1)
+            f2_l = da.ravel(field2)
+            H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
+                              weights=w_l**2, density=True)
+            # H = (H.T).rechunk(bins//2.5)
+            # there is probably a more clever way to rechunk ...
+            if log:
+                H = da.log10(H)
         else:
-            return da.log10(H), [xedges, yedges]
-        
-    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True):
+            w = w.compute()
+            w_l = np.ravel(w)
+            f1_l = np.ravel(field1)
+            f2_l = np.ravel(field2)
+            H, xedges, yedges = np.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
+                              weights=w_l**2, density=True)
+            if log:
+                H = np.log10(H)
+        H = H.T
+
+        return H, [xedges, yedges]
+
+    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True, delayed=True):
+        '''
+        If not delayed, fields must already be computed!
+        '''
         # computing the marginal pdfs
-        H1, edges1 = self.pdf(field1, bins, ranges[0])
-        H2, edges2 = self.pdf(field2, bins, ranges[1])
+        H1, edges1 = self.pdf(field1, bins, ranges[0], delayed)
+        H2, edges2 = self.pdf(field2, bins, ranges[1], delayed)
 
         # Repeating on the whole meshgrid
-        H1_f = da.expand_dims(H1, axis=1)
-        H2_f = da.expand_dims(H2, axis=0)
-        H1_f = da.repeat(H1_f, len(H1), axis=1).rechunk(bins//2.5)
-        H2_f = da.repeat(H2_f, len(H2), axis=0).rechunk(bins//2.5)
+        if delayed:
+            H1_f = da.expand_dims(H1, axis=1)
+            H2_f = da.expand_dims(H2, axis=0)
+            H1_f = da.repeat(H1_f, len(H1), axis=1).rechunk(bins//2.5)
+            H2_f = da.repeat(H2_f, len(H2), axis=0).rechunk(bins//2.5)
+            # there is probably a more clever way to rechunk ...
+        else:
+            H1_f = np.expand_dims(H1, axis=1)
+            H2_f = np.expand_dims(H2, axis=0)
+            H1_f = np.repeat(H1_f, len(H1), axis=1)
+            H2_f = np.repeat(H2_f, len(H2), axis=0)
 
         H = (H1_f*H2_f).T
         if log:
-            H = da.log10(H)
+            if delayed:
+                H = da.log10(H)
+            else:
+                H = np.log10(H)
 
         return H, [edges1, edges2], [H1, H2]
 
     def correlations(self, field1, field2, bins=1000, ranges=[None,None], log=True,\
-                     all=False):
-        args = (field1, field2, bins, ranges, False)
+                     all=False, delayed=True):
+        args = (field1, field2, bins, ranges, False, delayed)
         joint = self.joint_pdf(*args)
         marginal = self.marginal_joint_pdf(*args)
         C = joint[0]/marginal[0]
         if log:
-            C = da.log10(C)
+            if delayed:
+                C = da.log10(C)
+            else:
+                C = np.log10(C)
         
         if not all:
             return C, joint[1] 
@@ -166,10 +199,13 @@ class calculations(database):
         return field2
         
     @staticmethod
-    def get_range(A):
+    def get_range(A, delayed=True):
         # A must be a dask array!
-        Amin = A.min().compute()
-        Amax = A.max().compute()
+        Amin = A.min()
+        Amax = A.max()
+        if delayed:
+            Amin = Amin.compute()
+            Amax = Amax.compute()
         return [Amin, Amax]
 
     def key_check(self, key):
