@@ -80,11 +80,12 @@ class calculations(database):
         w = self.duplicate(da.from_array(self.db['v_weight']), field)
         if range is None:
             range = self.get_range(field, delayed)
+
+        mod = self.general_module(delayed)
         if not delayed:
             w = w.compute()
-            H, edges = np.histogram(field, bins=bins, range=range, weights=w, density=True)
-        else:
-            H, edges = da.histogram(field, bins=bins, range=range, weights=w, density=True)
+
+        H, edges = mod.histogram(field, bins=bins, range=range, weights=w, density=True)
         # H = H.rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
 
@@ -100,27 +101,21 @@ class calculations(database):
             if r is None: 
                 ranges[i] = self.get_range(fields[i], delayed)
 
-        # flattening the data
-        if delayed:
-            w_l = da.ravel(w)
-            f1_l = da.ravel(field1)
-            f2_l = da.ravel(field2)
-            H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
-                              weights=w_l**2, density=True)
-            # H = (H.T).rechunk(bins//2.5)
-            # there is probably a more clever way to rechunk ...
-            if log:
-                H = da.log10(H)
-        else:
+        mod = self.general_module(delayed)
+        if not delayed:
             w = w.compute()
-            w_l = np.ravel(w)
-            f1_l = np.ravel(field1)
-            f2_l = np.ravel(field2)
-            H, xedges, yedges = np.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
-                              weights=w_l**2, density=True)
-            if log:
-                H = np.log10(H)
+        
+        # flattening the data    
+        w_l = mod.ravel(w)
+        f1_l = mod.ravel(field1)
+        f2_l = mod.ravel(field2)
+        H, xedges, yedges = mod.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
+                            weights=w_l**2, density=True)
         H = H.T
+        # H = H.rechunk(bins//2.5)
+        # there is probably a more clever way to rechunk ...
+        if log:
+            H = mod.log10(H)
 
         return H, [xedges, yedges]
 
@@ -132,25 +127,21 @@ class calculations(database):
         H1, edges1 = self.pdf(field1, bins, ranges[0], delayed)
         H2, edges2 = self.pdf(field2, bins, ranges[1], delayed)
 
+        mod = self.general_module(delayed)
+
         # Repeating on the whole meshgrid
+        H1_f = mod.expand_dims(H1, axis=1)
+        H2_f = mod.expand_dims(H2, axis=0)
+        H1_f = mod.repeat(H1_f, len(H1), axis=1)
+        H2_f = mod.repeat(H2_f, len(H2), axis=0)
         if delayed:
-            H1_f = da.expand_dims(H1, axis=1)
-            H2_f = da.expand_dims(H2, axis=0)
-            H1_f = da.repeat(H1_f, len(H1), axis=1).rechunk(bins//2.5)
-            H2_f = da.repeat(H2_f, len(H2), axis=0).rechunk(bins//2.5)
-            # there is probably a more clever way to rechunk ...
-        else:
-            H1_f = np.expand_dims(H1, axis=1)
-            H2_f = np.expand_dims(H2, axis=0)
-            H1_f = np.repeat(H1_f, len(H1), axis=1)
-            H2_f = np.repeat(H2_f, len(H2), axis=0)
+            H1_f = H1_f.rechunk(bins//2.5)
+            H2_f = H2_f.rechunk(bins//2.5)
+        # there is probably a more clever way to rechunk ...
 
         H = (H1_f*H2_f).T
         if log:
-            if delayed:
-                H = da.log10(H)
-            else:
-                H = np.log10(H)
+            H = mod.log10(H)
 
         return H, [edges1, edges2], [H1, H2]
 
@@ -160,11 +151,10 @@ class calculations(database):
         joint = self.joint_pdf(*args)
         marginal = self.marginal_joint_pdf(*args)
         C = joint[0]/marginal[0]
+
+        mod = self.general_module(delayed)
         if log:
-            if delayed:
-                C = da.log10(C)
-            else:
-                C = np.log10(C)
+            C = mod.log10(C)
         
         if not all:
             return C, joint[1] 
@@ -207,6 +197,13 @@ class calculations(database):
             Amin = Amin.compute()
             Amax = Amax.compute()
         return [Amin, Amax]
+
+    @staticmethod
+    def general_module(delayed):
+        if delayed:
+            return da
+        else:
+            return np
 
     def key_check(self, key):
         # checks if a key is present in the db
