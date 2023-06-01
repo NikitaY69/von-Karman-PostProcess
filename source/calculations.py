@@ -18,12 +18,9 @@ class calculations(database):
 
         self.base_chunk = self.db['u']['field'].chunksize
 
-    def norm(self, key, delayed=True):
-        # computes the norm of a field present in the db
-        self.key_check(key)
+    def norm(self, field, delayed=True):
         mod = self.general_module(delayed)
-
-        return mod.linalg.norm(self.db[key]['field'], ord=2, axis=0, keepdims=True)
+        return mod.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
     def mean(self, field, type, delayed=True):
         '''
