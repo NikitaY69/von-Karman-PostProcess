@@ -10,9 +10,6 @@ class calculations(database):
         1-component fields.
         Typical dimensions for 1-component fields are (1, T, P, N_P)
         (Reminder: 3-components fields are concatenations of the base ones)
-        All the calculations here only yield a dask task. You need to compute
-        them afterwards. 
-        The parallelization is automatically made in the dask graphs/chunks (I think).
         '''
         database.__init__(self, src)
         dims = list(self.db['u']['field'].shape) # u will always be present in any db
@@ -87,6 +84,9 @@ class calculations(database):
             range = self.get_range(field, delayed)
 
         mod = self.general_module(delayed)
+        if delayed:
+            fields = [field, w]
+            field, w = self.prepare(fields)
 
         H, edges = mod.histogram(field, bins=bins, range=range, weights=w, density=True)
         # H = H.rechunk(bins//2.5)
@@ -112,6 +112,10 @@ class calculations(database):
         f1_l = mod.ravel(field1)
         f2_l = mod.ravel(field2)
 
+        if delayed:
+            fields = [f1_l, f2_l, w_l]
+            f1_l, f2_l, w_l = self.prepare(fields)
+            
         H, xedges, yedges = mod.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
                             weights=w_l**2, density=True)
         H = H.T
@@ -166,12 +170,29 @@ class calculations(database):
             return C, joint[1], joint[0], [marginal[0], marginal[2]]
             # Corr - [edges] - joint_pdf - [marginal_joint_pdf, marginal_pdfs]
 
+    def prepare(self, tasks, persist=True):
+        '''
+        Prepare a set of tasks into a future object.
+        Each task must come from dask.
+
+        Note: it might be possible to parallelize here with dask.compute(*tasks)
+              but I don't know if it's a good idea + if it holds with persist method.
+        '''
+        if persist:
+            for i, task in enumerate(tasks):
+                tasks[i] = task.persist()
+        else:
+            for i, task in enumerate(tasks):
+                tasks[i] = task.compute()
+
+        return tasks
+
     def duplicate(self, field, target, delayed=True, rechunk=False):
         # this function is useful to reshape a field properly to
         # a target array (for the purpose of dealing with same dimensions)
         
         # some objects in the db are not naturally dask arrays
-        if type(field) = np.ndarray and delayed=True:
+        if type(field) == np.ndarray and delayed == True:
             field = da.from_array(field)
 
         mod = self.general_module(delayed)
