@@ -2,6 +2,7 @@ from database import database
 import numpy as np
 import dask.array as da
 import dask
+import cupy as cp
 
 class calculations(database):
     def __init__(self, src):
@@ -85,27 +86,27 @@ class calculations(database):
         return H, edges
 
     def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True):
-        w = self.duplicate(da.from_array(self.db['v_weight']), field1)
+        w = self.duplicate(cp.array(self.db['v_weight']), field1)
         fields = [field1, field2]
 
         # flattening the data
-        w_l = da.ravel(w)
-        f1_l = da.ravel(field1)
-        f2_l = da.ravel(field2)
+        w_l = cp.ravel(w)
+        f1_l = cp.ravel(field1)
+        f2_l = cp.ravel(field2)
 
         for i, r in enumerate(ranges):
             if r is None: 
                 ranges[i] = self.get_range(fields[i])
         
-        H, xedges, yedges = da.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
+        H, xedges, yedges = cp.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
                               weights=w_l**2, density=True)
-        H = (H.T).rechunk(bins//2.5)
+        # H = (H.T).rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
 
         if not log:
             return H, [xedges, yedges]
         else:
-            return da.log10(H), [xedges, yedges]
+            return cp.log10(H), [xedges, yedges]
         
     def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True):
         # computing the marginal pdfs
@@ -152,24 +153,24 @@ class calculations(database):
             if d not in f1:
                 ax.append(i)
         ax = tuple(ax)
-        field2 = da.expand_dims(field, axis=ax)
-        if rechunk:
-            # new_chunk = tuple([1 if d not in ax else self.base_chunk[d] for d in range(4)])
-            new_chunk = field2.shape
-            field2 = field2.rechunk(new_chunk)
+        field2 = cp.expand_dims(field, axis=ax)
+        # if rechunk:
+        #     # new_chunk = tuple([1 if d not in ax else self.base_chunk[d] for d in range(4)])
+        #     new_chunk = field2.shape
+        #     field2 = field2.rechunk(new_chunk)
         # duplicating
         for i in ax:
-            field2 = da.repeat(field2, f2[i], axis=i)
+            field2 = cp.repeat(field2, f2[i], axis=i)
 
-        field2 = field2.rechunk(self.base_chunk)
+        # field2 = field2.rechunk(self.base_chunk)
 
         return field2
         
     @staticmethod
     def get_range(A):
         # A must be a dask array!
-        Amin = A.min().compute()
-        Amax = A.max().compute()
+        Amin = A.min()
+        Amax = A.max()
         return [Amin, Amax]
 
     def key_check(self, key):

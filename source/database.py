@@ -147,7 +147,7 @@ class database():
         note : if no view can be created memmap returns an ndarray (!!!MEMORY!!!)
         ---------------------------------------
         """
-        data = cp.fromfile(filename) # mode='r', shape=shape, dtype=dtype, offset=offset, order="F")))
+        data = np.memmap(filename, mode='r', shape=shape, dtype=dtype, offset=offset,order="F") # mode='r', shape=shape, dtype=dtype, offset=offset, order="F")))
         if slice !=  None:
             return data[slice]
         else:
