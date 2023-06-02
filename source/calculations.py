@@ -18,11 +18,11 @@ class calculations(database):
 
         self.base_chunk = self.db['u']['field'].chunksize
 
-    def norm(self, field, delayed=True):
-        mod = self.general_module(delayed)
+    def norm(self, field):
+        mod = self.set_module(field)
         return mod.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
-    def mean(self, field, type, delayed=True):
+    def mean(self, field, type):
         '''
         Computing of a mean quantity along a certain axis depending on the type of averaging.
         field must have the same structure as typical objects of the db (ie self.dims).
@@ -35,13 +35,13 @@ class calculations(database):
         the mean for each computation ...
         '''
         self.mean_type_check(type)
-        mod = self.general_module(delayed)
+        mod = self.set_module(field)
 
         s = 1           # T axis
         w = None    
         if type != 'temporal':
             s = (2,3)   # P and N axis
-            w = self.duplicate(self.db['v_weight'], field, delayed)
+            w = self.duplicate(self.db['v_weight'], field)
         avg = mod.average(field, axis=s, weights=w)
         if type != 'both':
             return avg
@@ -49,39 +49,33 @@ class calculations(database):
             # if its 'both', you need to temporally average the spatial average
             return mod.average(avg, axis=None, weights=None)
     
-    def moment(self, field, type, n, raw=True, delayed=True):
-        '''
-        field is already computed in case the delayed option is set to true
-        '''
+    def moment(self, field, type, n, raw=True):
         # same principle as in mean function
         self.mean_type_check(type)
 
         if raw:
             avg = 0
         else:
-            avg = self.mean(field, type, delayed)
-            avg = self.duplicate(avg, field, delayed)
+            avg = self.mean(field, type)
+            avg = self.duplicate(avg, field)
         to_compute = (field - avg)**n
 
-        return self.mean(to_compute, type, delayed)
+        return self.mean(to_compute, type)
 
     '''
     For the pdfs, fields must be scalar ones.
     TO-DO:
     - Rechunk more cleverly
     '''
-    def pdf(self, field, bins=1000, range=None, delayed=True):
-        '''
-        If not delayed, fields must already be computed!
-        '''
+    def pdf(self, field, bins=1000, range=None):
         # histogram range should be offseted case by case after visualization
-        
-        w = self.duplicate(self.db['v_weight'], field, delayed)
-        if range is None:
-            range = self.get_range(field, delayed)
+        mod = self.set_module(field)
 
-        mod = self.general_module(delayed)
-        if delayed:
+        w = self.duplicate(self.db['v_weight'], field)
+        if range is None:
+            range = self.get_range(field, mod)
+
+        if mod is da:
             fields = [field, w]
             field, w = self.prepare(fields)
 
@@ -91,25 +85,23 @@ class calculations(database):
 
         return H, edges
 
-    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True, delayed=True):
+    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True):
         '''
         field1 and field2 must have the same shape.
-        If not delayed, fields must already be computed!
         '''
-        w = self.duplicate(self.db['v_weight'], field1, delayed)
+        mod = self.set_module(field1)
+        w = self.duplicate(self.db['v_weight'], field1)
         fields = [field1, field2]
         for i, r in enumerate(ranges):
             if r is None: 
-                ranges[i] = self.get_range(fields[i], delayed)
-
-        mod = self.general_module(delayed)
+                ranges[i] = self.get_range(fields[i], mod)
 
         # flattening the data    
         w_l = mod.ravel(w)
         f1_l = mod.ravel(field1)
         f2_l = mod.ravel(field2)
 
-        if delayed:
+        if mod is da:
             fields = [f1_l, f2_l, w_l]
             f1_l, f2_l, w_l = self.prepare(fields)
             
@@ -123,22 +115,19 @@ class calculations(database):
 
         return H, [xedges, yedges]
 
-    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True, delayed=True):
-        '''
-        If not delayed, fields must already be computed!
-        '''
+    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True):
         # computing the marginal pdfs
-        H1, edges1 = self.pdf(field1, bins, ranges[0], delayed)
-        H2, edges2 = self.pdf(field2, bins, ranges[1], delayed)
+        H1, edges1 = self.pdf(field1, bins, ranges[0])
+        H2, edges2 = self.pdf(field2, bins, ranges[1])
 
-        mod = self.general_module(delayed)
+        mod = self.set_module(field1)
 
         # Repeating on the whole meshgrid
         H1_f = mod.expand_dims(H1, axis=1)
         H2_f = mod.expand_dims(H2, axis=0)
         H1_f = mod.repeat(H1_f, len(H1), axis=1)
         H2_f = mod.repeat(H2_f, len(H2), axis=0)
-        if delayed:
+        if mod is da:
             H1_f = H1_f.rechunk(bins//2.5)
             H2_f = H2_f.rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
@@ -150,13 +139,13 @@ class calculations(database):
         return H, [edges1, edges2], [H1, H2]
 
     def correlations(self, field1, field2, bins=1000, ranges=[None,None], log=True,\
-                     all=False, delayed=True):
-        args = (field1, field2, bins, ranges, False, delayed)
+                     all=False):
+        args = (field1, field2, bins, ranges, False)
         joint = self.joint_pdf(*args)
         marginal = self.marginal_joint_pdf(*args)
         C = joint[0]/marginal[0]
 
-        mod = self.general_module(delayed)
+        mod = self.set_module(field1)
         if log:
             C = mod.log10(C)
         
@@ -184,15 +173,15 @@ class calculations(database):
 
         return tasks
 
-    def duplicate(self, field, target, delayed=True, rechunk=False):
+    def duplicate(self, field, target, rechunk=False):
         # this function is useful to reshape a field properly to
         # a target array (for the purpose of dealing with same dimensions)
         
+        mod = self.set_module(target)
         # some objects in the db are not naturally dask arrays
-        if type(field) == np.ndarray and delayed == True:
+        if type(field) == np.ndarray and mod is da:
             field = da.from_array(field)
 
-        mod = self.general_module(delayed)
         # finding dimensions on which to copy initial array
         f1 = field.shape
         f2 = target.shape
@@ -206,7 +195,7 @@ class calculations(database):
         # duplicating
         for i in ax:
             field2 = mod.repeat(field2, f2[i], axis=i)
-        if delayed:
+        if mod is da:
             if rechunk:
                 new_chunk = field2.shape
             else:
@@ -214,20 +203,28 @@ class calculations(database):
             field2 = field2.rechunk(new_chunk)
 
         return field2
-        
+
     @staticmethod
-    def get_range(A, delayed=True):
+    def get_range(A, mod):
         # A must be a dask array!
         Amin = A.min()
         Amax = A.max()
-        if delayed:
+        if mod is da:
+            # this is really bad, some users might not da as their alias for dask.array
             Amin = Amin.compute()
             Amax = Amax.compute()
         return [Amin, Amax]
 
     @staticmethod
-    def general_module(delayed):
-        if delayed:
+    def set_module(field):
+        '''
+        This function checks the nature of an object and selects the module which
+        fits best for calculations related to it.
+        '''
+        if type(field) not in [np.ndarray, da.core.Array]:
+            raise NotImplementedError("It is not possible to deal with this kind of field.\n\
+                                       It must be either delayed through Dask or simply a numpy array.")
+        elif type(field) is np.ndarray:
             return da
         else:
             return np
