@@ -70,10 +70,10 @@ class calculations(database):
     def pdf(self, field, bins=1000, range=None):
         # histogram range should be offseted case by case after visualization
         mod = self.set_module(field)
-
+        
         w = self.duplicate(self.db['v_weight'], field)
         if range is None:
-            range = self.get_range(field, mod)
+            range = self.get_range(field)
 
         if mod is da:
             fields = [field, w]
@@ -94,7 +94,7 @@ class calculations(database):
         fields = [field1, field2]
         for i, r in enumerate(ranges):
             if r is None: 
-                ranges[i] = self.get_range(fields[i], mod)
+                ranges[i] = self.get_range(fields[i])
 
         # flattening the data    
         w_l = mod.ravel(w)
@@ -102,9 +102,9 @@ class calculations(database):
         f2_l = mod.ravel(field2)
 
         if mod is da:
-            fields = [f1_l, f2_l, w_l]
-            f1_l, f2_l, w_l = self.prepare(fields)
-            
+             fields = [f1_l, f2_l, w_l]
+             f1_l, f2_l, w_l = self.prepare(fields)
+
         H, xedges, yedges = mod.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
                             weights=w_l**2, density=True)
         H = H.T
@@ -114,6 +114,7 @@ class calculations(database):
             H = mod.log10(H)
 
         return H, [xedges, yedges]
+
 
     def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True):
         # computing the marginal pdfs
@@ -156,7 +157,8 @@ class calculations(database):
             return C, joint[1], joint[0], [marginal[0], marginal[2]]
             # Corr - [edges] - joint_pdf - [marginal_joint_pdf, marginal_pdfs]
 
-    def prepare(self, tasks, persist=True):
+    @staticmethod
+    def prepare(tasks, persist=True):
         '''
         Prepare a set of tasks into a future object.
         Each task must come from dask.
@@ -179,7 +181,7 @@ class calculations(database):
         
         mod = self.set_module(target)
         # some objects in the db are not naturally dask arrays
-        if type(field) == np.ndarray and mod is da:
+        if type(field).__name__ is 'ndarray' and mod is da:
             field = da.from_array(field)
 
         # finding dimensions on which to copy initial array
@@ -205,12 +207,10 @@ class calculations(database):
         return field2
 
     @staticmethod
-    def get_range(A, mod):
-        # A must be a dask array!
+    def get_range(A):
         Amin = A.min()
         Amax = A.max()
-        if mod is da:
-            # this is really bad, some users might not da as their alias for dask.array
+        if type(A).__name__ is 'Array':
             Amin = Amin.compute()
             Amax = Amax.compute()
         return [Amin, Amax]
@@ -221,13 +221,13 @@ class calculations(database):
         This function checks the nature of an object and selects the module which
         fits best for calculations related to it.
         '''
-        if type(field) not in [np.ndarray, da.core.Array]:
+        if type(field).__name__ not in ['ndarray', 'Array']:
             raise NotImplementedError("It is not possible to deal with this kind of field.\n\
                                        It must be either delayed through Dask or simply a numpy array.")
-        elif type(field) is np.ndarray:
-            return da
-        else:
+        elif type(field) is 'ndarray':
             return np
+        else:
+            return da
 
     def key_check(self, key):
         # checks if a key is present in the db
