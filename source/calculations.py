@@ -22,7 +22,7 @@ class calculations(database):
         mod = self.set_module(field)
         return mod.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
-    def mean(self, field, type):
+    def mean(self, field, slice=None, type='spatial'):
         '''
         Computing of a mean quantity along a certain axis depending on the type of averaging.
         field must have the same structure as typical objects of the db (ie self.dims).
@@ -42,6 +42,11 @@ class calculations(database):
         if type != 'temporal':
             s = (2,3)   # P and N axis
             w = self.duplicate(self.db['v_weight'], field)
+            if slice != None:
+                w = self.repeat_slice([w], slice)
+
+        if slice != None:
+            field = self.repeat_slice([field], slice)
         avg = mod.average(field, axis=s, weights=w)
         if type != 'both':
             return avg
@@ -65,13 +70,13 @@ class calculations(database):
     '''
     For the pdfs, fields must be scalar ones.
     '''
-    def pdf(self, field, slice=None, bins=1000, range=None, save=None)
+    def pdf(self, field, slice=None, bins=1000, range=None, save=None):
 
         # general objects
         mod = self.set_module(field)
         w = self.duplicate(self.db['v_weight'], field)
         fields = [field, w]
-        
+
         # slicing (might be a problem for dask ...)
         if slice != None:
             field, w = self.repeat_slice(fields, slice)
