@@ -177,7 +177,7 @@ class calculations(database):
             joint = self.joint_pdf(*args[:-2])[0]
             marginal = self.marginal_joint_pdf(*args)
 
-        C = joint[0]/marginal[0]
+        C = joint/marginal[0]
 
         mod = self.set_module(field1)
         if log:
@@ -196,7 +196,7 @@ class calculations(database):
         
         mod = self.set_module(target)
         # some objects in the db are not naturally dask arrays
-        if type(field).__name__ is 'ndarray' and mod is da:
+        if type(field).__name__ == 'ndarray' and mod is da:
             field = da.from_array(field)
 
         # finding dimensions on which to copy initial array
@@ -261,7 +261,7 @@ class calculations(database):
     def get_range(A):
         Amin = A.min()
         Amax = A.max()
-        if type(A).__name__ is 'Array':
+        if type(A).__name__ == 'Array':
             Amin = Amin.compute()
             Amax = Amax.compute()
         return [Amin, Amax]
@@ -275,7 +275,7 @@ class calculations(database):
         if type(field).__name__ not in ['ndarray', 'Array']:
             raise NotImplementedError("It is not possible to deal with this kind of field.\n\
                                        It must be either delayed through Dask or simply a numpy array.")
-        elif type(field) is 'ndarray':
+        elif type(field).__name__ == 'ndarray':
             return np
         else:
             return da
