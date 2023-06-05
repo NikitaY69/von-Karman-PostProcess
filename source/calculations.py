@@ -64,10 +64,8 @@ class calculations(database):
 
     '''
     For the pdfs, fields must be scalar ones.
-    TO-DO:
-    - Rechunk more cleverly
     '''
-    def pdf(self, field, bins=1000, range=None):
+    def pdf(self, field, bins=1000, range=None, save=None):
         # histogram range should be offseted case by case after visualization
         mod = self.set_module(field)
         
@@ -82,12 +80,17 @@ class calculations(database):
         H, edges = mod.histogram(field, bins=bins, range=range, weights=w, density=True)
         # H = H.rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
+        
+        # saving
+        if save != None:
+            H.tofile(save)
 
         return H, edges
 
-    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True):
+    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True, save=None):
         '''
         field1 and field2 must have the same shape.
+        Note: for limiting error propagation, if saving, it won't be log10.
         '''
         mod = self.set_module(field1)
         w = self.duplicate(self.db['v_weight'], field1)
@@ -110,24 +113,40 @@ class calculations(database):
         H = H.T
         # H = H.rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
+
+        # saving
+        if save != None:
+            H.tofile(save)
+
         if log:
             H = mod.log10(H)
 
         return H, [xedges, yedges]
 
+    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None],\
+                           log=False, load=True, all=False):
 
-    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None], log=True):
-        # computing the marginal pdfs
-        H1, edges1 = self.pdf(field1, bins, ranges[0])
-        H2, edges2 = self.pdf(field2, bins, ranges[1])
+        # gathering the marginal pdfs
+        if load:
+            # in this case, field1 and field2 are already the marginal pdfs NOT the fields
+            H1, H2 = field1, field2
+            # you need to provide the ranges for the function to compute the edges
+            if ranges[0] is None or ranges[1] is None:
+                raise ValueError('When loading, you need to provide the ranges for each field.\
+                                  Cannot compute the range based on an histogram only.')
+            edges1, edges2 = self.compute_edges(bins, ranges)
+
+        else:
+            H1, edges1 = self.pdf(field1, bins, ranges[0])
+            H2, edges2 = self.pdf(field2, bins, ranges[1])
 
         mod = self.set_module(field1)
 
         # Repeating on the whole meshgrid
         H1_f = mod.expand_dims(H1, axis=1)
         H2_f = mod.expand_dims(H2, axis=0)
-        H1_f = mod.repeat(H1_f, len(H1), axis=1)
-        H2_f = mod.repeat(H2_f, len(H2), axis=0)
+        H1_f = mod.repeat(H1_f, len(H2), axis=1)
+        H2_f = mod.repeat(H2_f, len(H1), axis=0)
         if mod is da:
             H1_f = H1_f.rechunk(bins//2.5)
             H2_f = H2_f.rechunk(bins//2.5)
@@ -137,13 +156,27 @@ class calculations(database):
         if log:
             H = mod.log10(H)
 
-        return H, [edges1, edges2], [H1, H2]
+        if all:
+            return H, [edges1, edges2], [H1, H2]
+        else:
+            return H, [edges1, edges2]
 
     def correlations(self, field1, field2, bins=1000, ranges=[None,None], log=True,\
-                     all=False):
-        args = (field1, field2, bins, ranges, False)
-        joint = self.joint_pdf(*args)
-        marginal = self.marginal_joint_pdf(*args)
+                     load=True, all=False):
+        '''
+        If loading, field1 is the joint_pdf and field2 = [field1, field2],
+        where field1 and field2 are the real fields of interest.
+        This is really bad.
+        '''
+        args = [field1, field2, bins, ranges, False, load, all]
+        if load:
+            args[0], args[1] = field2
+            joint = self.load_reshaped(field1, bins)
+            marginal = self.marginal_joint_pdf(*args)
+        else:
+            joint = self.joint_pdf(*args[:-2])[0]
+            marginal = self.marginal_joint_pdf(*args)
+
         C = joint[0]/marginal[0]
 
         mod = self.set_module(field1)
@@ -151,29 +184,11 @@ class calculations(database):
             C = mod.log10(C)
         
         if not all:
-            return C, joint[1] 
+            return C, marginal[1] 
             # Corr - [edges]
         else:
-            return C, joint[1], joint[0], [marginal[0], marginal[2]]
-            # Corr - [edges] - joint_pdf - [marginal_joint_pdf, marginal_pdfs]
-
-    @staticmethod
-    def prepare(tasks, persist=True):
-        '''
-        Prepare a set of tasks into a future object.
-        Each task must come from dask.
-
-        Note: it might be possible to parallelize here with dask.compute(*tasks)
-              but I don't know if it's a good idea + if it holds with persist method.
-        '''
-        if persist:
-            for i, task in enumerate(tasks):
-                tasks[i] = task.persist()
-        else:
-            for i, task in enumerate(tasks):
-                tasks[i] = task.compute()
-
-        return tasks
+            return C, marginal[1], joint, marginal[2]
+            # Corr - [edges] - joint_pdf - [marginal_pdfs]
 
     def duplicate(self, field, target, rechunk=False):
         # this function is useful to reshape a field properly to
@@ -205,6 +220,42 @@ class calculations(database):
             field2 = field2.rechunk(new_chunk)
 
         return field2
+
+    @staticmethod
+    def load_reshaped(pdf, n):
+        '''
+        Reshapes a flattened pdf coming from np.fromfile to a n*n 2d pdf.
+        '''
+        H = np.empty(shape=(n,n))
+        # rebuilding
+        for l in range(n):
+            H[l, :] = pdf[l*n:(l+1)*n]
+        return H
+
+    @staticmethod
+    def compute_edges(bins, ranges):
+        edges = []
+        for r in ranges:
+            edges.append(np.linspace(r[0], r[1], bins+1))
+        return edges
+
+    @staticmethod
+    def prepare(tasks, persist=True):
+        '''
+        Prepare a set of tasks into a future object.
+        Each task must come from dask.
+
+        Note: it might be possible to parallelize here with dask.compute(*tasks)
+              but I don't know if it's a good idea + if it holds with persist method.
+        '''
+        if persist:
+            for i, task in enumerate(tasks):
+                tasks[i] = task.persist()
+        else:
+            for i, task in enumerate(tasks):
+                tasks[i] = task.compute()
+
+        return tasks
 
     @staticmethod
     def get_range(A):
