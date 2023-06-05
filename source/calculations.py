@@ -65,16 +65,22 @@ class calculations(database):
     '''
     For the pdfs, fields must be scalar ones.
     '''
-    def pdf(self, field, bins=1000, range=None, save=None):
-        # histogram range should be offseted case by case after visualization
+    def pdf(self, field, slice=None, bins=1000, range=None, save=None)
+
+        # general objects
         mod = self.set_module(field)
-        
         w = self.duplicate(self.db['v_weight'], field)
+        fields = [field, w]
+        
+        # slicing (might be a problem for dask ...)
+        if slice != None:
+            field, w = self.repeat_slice(fields, slice)
+        
+        # range
         if range is None:
             range = self.get_range(field)
 
         if mod is da:
-            fields = [field, w]
             field, w = self.prepare(fields)
 
         H, edges = mod.histogram(field, bins=bins, range=range, weights=w, density=True)
@@ -87,29 +93,35 @@ class calculations(database):
 
         return H, edges
 
-    def joint_pdf(self, field1, field2, bins=1000, ranges=[None, None], log=True, save=None):
+    def joint_pdf(self, field1, field2, slice=None, bins=1000, ranges=[None, None], \
+                  log=True, save=None):
         '''
         field1 and field2 must have the same shape.
         Note: for limiting error propagation, if saving, it won't be log10.
         '''
         mod = self.set_module(field1)
         w = self.duplicate(self.db['v_weight'], field1)
-        fields = [field1, field2]
+        fields = [field1, field2, w]
+
+        # slicing (might be a problem for dask ...)
+        if slice != None:
+            fields = self.repeat_slice(fields, slice)
+
+        # range
         for i, r in enumerate(ranges):
             if r is None: 
                 ranges[i] = self.get_range(fields[i])
 
         # flattening the data    
-        w_l = mod.ravel(w)
-        f1_l = mod.ravel(field1)
-        f2_l = mod.ravel(field2)
+        field1 = mod.ravel(fields[0])
+        field2 = mod.ravel(fields[1])
+        w = mod.ravel(fields[2])
 
         if mod is da:
-             fields = [f1_l, f2_l, w_l]
-             f1_l, f2_l, w_l = self.prepare(fields)
+             field1, field2, w = self.prepare(fields)
 
-        H, xedges, yedges = mod.histogram2d(f1_l, f2_l, bins=bins, range=ranges, \
-                            weights=w_l**2, density=True)
+        H, xedges, yedges = mod.histogram2d(field1, field2, bins=bins, range=ranges, \
+                            weights=w**2, density=True)
         H = H.T
         # H = H.rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
@@ -123,7 +135,7 @@ class calculations(database):
 
         return H, [xedges, yedges]
 
-    def marginal_joint_pdf(self, field1, field2, bins=1000, ranges=[None,None],\
+    def marginal_joint_pdf(self, field1, field2, slice=None, bins=1000, ranges=[None,None],\
                            log=False, load=True, all=False):
 
         # gathering the marginal pdfs
@@ -137,8 +149,8 @@ class calculations(database):
             edges1, edges2 = self.compute_edges(bins, ranges)
 
         else:
-            H1, edges1 = self.pdf(field1, bins, ranges[0])
-            H2, edges2 = self.pdf(field2, bins, ranges[1])
+            H1, edges1 = self.pdf(field1, slice, bins, ranges[0])
+            H2, edges2 = self.pdf(field2, slice, bins, ranges[1])
 
         mod = self.set_module(field1)
 
@@ -161,14 +173,14 @@ class calculations(database):
         else:
             return H, [edges1, edges2]
 
-    def correlations(self, field1, field2, bins=1000, ranges=[None,None], log=True,\
+    def correlations(self, field1, field2, slice=None, bins=1000, ranges=[None,None], log=True,\
                      load=True, all=False):
         '''
         If loading, field1 is the joint_pdf and field2 = [field1, field2],
         where field1 and field2 are the real fields of interest.
         This is really bad.
         '''
-        args = [field1, field2, bins, ranges, False, load, all]
+        args = [field1, field2, slice, bins, ranges, False, load, all]
         if load:
             args[0], args[1] = field2
             joint = self.load_reshaped(field1, bins)
@@ -238,6 +250,13 @@ class calculations(database):
         for r in ranges:
             edges.append(np.linspace(r[0], r[1], bins+1))
         return edges
+
+    @staticmethod
+    def repeat_slice(arrays, slice):
+        # slice must be a np.s_ object
+        for i, array in enumerate(arrays):
+            arrays[i] = array[slice]
+        return arrays
 
     @staticmethod
     def prepare(tasks, persist=True):
