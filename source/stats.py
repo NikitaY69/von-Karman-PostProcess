@@ -3,7 +3,7 @@ import numpy as np
 import dask.array as da
 import dask
 
-class statistics(database):
+class stats(database):
     def __init__(self, src):
         '''
         This class incorporates useful computations related to the statistics of 
@@ -46,7 +46,7 @@ class statistics(database):
             w = self.duplicate(self.db['v_weight'], field)
             if slice != None:
                 w = self.advanced_slice(w, slice)
-                
+
         if slice!= None:
             field = self.advanced_slice(field, slice)
         avg = mod.average(field, axis=s, weights=w)
