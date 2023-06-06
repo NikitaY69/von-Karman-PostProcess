@@ -82,14 +82,14 @@ class Stats(Database):
         # slicing
         if slice is not None:
             fields = self.repeat_slice(fields, slice)
-        
+
         # range
         if range is None:
-            range = self.get_range(field)
+            range = self.get_range(fields[0])
 
         if mod is da:
             fields = self.prepare(fields)
-
+        
         field, w = fields
         H, edges = mod.histogram(field, bins=bins, range=range, weights=w, density=True)
         # H = H.rechunk(bins//2.5)
@@ -126,7 +126,7 @@ class Stats(Database):
         
         if mod is da:
              fields = self.prepare(fields)
-        
+
         field1, field2, w = fields
         H, xedges, yedges = mod.histogram2d(field1, field2, bins=bins, range=ranges, \
                             weights=w**2, density=True)
@@ -260,7 +260,7 @@ class Stats(Database):
     def repeat_slice(self, fields, condition):
         for i, field in enumerate(fields):
             fields[i] = self.advanced_slice(field, condition)
-
+        return fields
     @staticmethod    
     def load_reshaped(pdf, n):
         '''
