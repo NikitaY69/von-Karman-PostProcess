@@ -79,17 +79,18 @@ class Stats(Database):
         w = self.duplicate(self.db['v_weight'], field)
         fields = [field, w]
 
-        # slicing (might be a problem for dask ...)
+        # slicing
         if slice is not None:
-            field, w = self.repeat_slice(fields, slice)
+            fields = self.repeat_slice(fields, slice)
         
         # range
         if range is None:
             range = self.get_range(field)
 
         if mod is da:
-            field, w = self.prepare(fields)
+            fields = self.prepare(fields)
 
+        field, w = fields
         H, edges = mod.histogram(field, bins=bins, range=range, weights=w, density=True)
         # H = H.rechunk(bins//2.5)
         # there is probably a more clever way to rechunk ...
@@ -110,7 +111,7 @@ class Stats(Database):
         w = self.duplicate(self.db['v_weight'], field1)
         fields = [field1, field2, w]
 
-        # slicing (might be a problem for dask ...)
+        # slicing
         if slice is not None:
             fields = self.repeat_slice(fields, slice)
 
@@ -120,13 +121,13 @@ class Stats(Database):
                 ranges[i] = self.get_range(fields[i])
 
         # flattening the data    
-        field1 = mod.ravel(fields[0])
-        field2 = mod.ravel(fields[1])
-        w = mod.ravel(fields[2])
-
+        for i, field in enumerate(fields):
+            fields[i] = mod.ravel(field)
+        
         if mod is da:
-             field1, field2, w = self.prepare(fields)
-
+             fields = self.prepare(fields)
+        
+        field1, field2, w = fields
         H, xedges, yedges = mod.histogram2d(field1, field2, bins=bins, range=ranges, \
                             weights=w**2, density=True)
         H = H.T
