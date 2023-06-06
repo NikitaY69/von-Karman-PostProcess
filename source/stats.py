@@ -20,7 +20,7 @@ class stats(database):
 
     def norm(self, field, slice=None):
         mod = self.set_module(field)
-        if slice != None:
+        if slice is not None:
             field = self.advanced_slice(field, slice)
         return mod.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
@@ -44,10 +44,10 @@ class stats(database):
         if type != 'temporal':
             s = (2,3)   # P and N axis
             w = self.duplicate(self.db['v_weight'], field)
-            if slice != None:
+            if slice is not None:
                 w = self.advanced_slice(w, slice)
 
-        if slice!= None:
+        if slice is not None:
             field = self.advanced_slice(field, slice)
         avg = mod.average(field, axis=s, weights=w)
         if type != 'both':
@@ -80,7 +80,7 @@ class stats(database):
         fields = [field, w]
 
         # slicing (might be a problem for dask ...)
-        if slice != None:
+        if slice is not None:
             field, w = self.repeat_slice(fields, slice)
         
         # range
@@ -95,7 +95,7 @@ class stats(database):
         # there is probably a more clever way to rechunk ...
         
         # saving
-        if save != None:
+        if save is not None:
             H.tofile(save)
 
         return H, edges
@@ -111,7 +111,7 @@ class stats(database):
         fields = [field1, field2, w]
 
         # slicing (might be a problem for dask ...)
-        if slice != None:
+        if slice is not None:
             fields = self.repeat_slice(fields, slice)
 
         # range
@@ -134,7 +134,7 @@ class stats(database):
         # there is probably a more clever way to rechunk ...
 
         # saving
-        if save != None:
+        if save is not None:
             H.tofile(save)
 
         if log:
@@ -250,11 +250,11 @@ class stats(database):
         (not base index ones)
         np.where is mandatory for dask, it is not for traditional ndarrays.
         '''
-        if condition != 'ndarray':
+        if type(condition).__name__ != 'ndarray':
             raise NotImplementedError('You are probably giving a real slice.\n\
                                        This function only operating on the mesh;\
                                        please provide a condition outputting an array (ex: field<=3)')
-        return field[:, :, :, np.where(condition)]
+        return field[:, :, :, np.where(condition)[0]]
 
     def repeat_slice(self, fields, condition):
         for i, field in enumerate(fields):
