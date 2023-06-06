@@ -1,9 +1,9 @@
-from database import database
+from database import Database
 import numpy as np
 import dask.array as da
 import dask
 
-class stats(database):
+class Stats(Database):
     def __init__(self, src):
         '''
         This class incorporates useful computations related to the statistics of 
@@ -11,7 +11,7 @@ class stats(database):
         Typical dimensions for 1-component fields are (1, T, P, N_P)
         (Reminder: 3-components fields are concatenations of the base ones)
         '''
-        database.__init__(self, src)
+        Database.__init__(self, src)
         dims = list(self.db['u']['field'].shape) # u will always be present in any db
         dims[0] = int(dims[0]/3)
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices

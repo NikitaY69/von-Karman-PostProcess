@@ -6,7 +6,7 @@ import dask
 import dask.array as da
 import pickle
 
-class database():
+class Database():
     '''
     Please note that all the functions provided in this class were rawly written by 
     Rémi Bousquet. I have just reframed them in a more object-oriented manner.
