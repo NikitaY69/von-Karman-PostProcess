@@ -7,7 +7,7 @@ import dask.array as da
 import pickle
 import cupy as cp
 
-class database():
+class Database():
     '''
     Please note that all the functions provided in this class were rawly written by 
     Rémi Bousquet. I have just reframed them in a more object-oriented manner.
@@ -166,13 +166,13 @@ class database():
             N (list of int) : list of number of mesh point on each domain, e.g 
                               [N in S0, N in S1, N in S3,... ] 
         """
-        load = dask.delayed(database.memmap_load_chunk)
+        load = dask.delayed(Database.memmap_load_chunk)
         D, S, T, P, N = data_struct 
         
         # get raw view on data files
         field_stack = [da.from_delayed(load(join(path, filename),
-                       shape=(database.get_file_length(join(path, filename)),)),
-                       shape=(database.get_file_length(join(path,filename)),),
+                       shape=(Database.get_file_length(join(path, filename)),)),
+                       shape=(Database.get_file_length(join(path,filename)),),
                        dtype=np.float64)  
                        for filename in data_files]
         
@@ -239,7 +239,7 @@ class database():
         float_size (int) : size in octet, default 8.
         --------------------------------------------------
         """
-        all_files = database.get_file_list(path)
+        all_files = Database.get_file_list(path)
         files = np.sort([f for f in all_files if space in f])
         info = files[-1].split("_")
         T = int(info[3].split(".")[0][1:])
