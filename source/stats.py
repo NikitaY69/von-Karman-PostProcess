@@ -1,7 +1,7 @@
 from database import Database
 import numpy as np
+import cupy as cp
 import dask.array as da
-import dask
 
 class Stats(Database):
     def __init__(self, src):
@@ -16,13 +16,16 @@ class Stats(Database):
         dims[0] = int(dims[0]/3)
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
 
-        self.base_chunk = self.db['u']['field'].chunksize
+    '''
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    fields input in all the class methods MUST already be converted to cupy arrays.
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    '''
 
     def norm(self, field, slice=None):
-        mod = self.set_module(field)
         if slice is not None:
             field = self.advanced_slice(field, slice)
-        return mod.linalg.norm(field, ord=2, axis=0, keepdims=True)
+        return cp.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
     def mean(self, field, slice=None, type='spatial'):
         '''
@@ -30,31 +33,26 @@ class Stats(Database):
         field must have the same structure as typical objects of the db (ie self.dims).
         If field was built on a peculiar slicing, the input must still respect self.dims
         (tip: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :])
-
-        Note for improvement:
-        I need to rethink the database so that computed quantities can also be stored.
-        For example, when you compute n-th non-raw moments, it will be stupid to compute
-        the mean for each computation ...
         '''
         self.mean_type_check(type)
-        mod = self.set_module(field)
 
         s = 1           # T axis
         w = None    
         if type != 'temporal':
             s = (2,3)   # P and N axis
-            w = self.duplicate(self.db['v_weight'], field)
+            weight = cp.array(self.db['v_weight'])
+            w = self.duplicate(weight, field)
             if slice is not None:
                 w = self.advanced_slice(w, slice)
 
         if slice is not None:
             field = self.advanced_slice(field, slice)
-        avg = mod.average(field, axis=s, weights=w)
+        avg = cp.average(field, axis=s, weights=w)
         if type != 'both':
             return avg
         else:
             # if its 'both', you need to temporally average the spatial average
-            return mod.average(avg, axis=None, weights=None)
+            return cp.average(avg, axis=None, weights=None)
     
     def moment(self, field, type, n, raw=True):
         # same principle as in mean function
@@ -73,10 +71,10 @@ class Stats(Database):
     For the pdfs, fields must be scalar ones.
     '''
     def pdf(self, field, slice=None, bins=1000, range=None, save=None):
-
+        
         # general objects
-        mod = self.set_module(field)
-        w = self.duplicate(self.db['v_weight'], field)
+        weight = cp.array(self.db['v_weight'])
+        w = self.duplicate(weight, field)
         fields = [field, w]
 
         # slicing
@@ -86,14 +84,9 @@ class Stats(Database):
         # range
         if range is None:
             range = self.get_range(fields[0])
-
-        if mod is da:
-            fields = self.prepare(fields)
         
         field, w = fields
-        H, edges = mod.histogram(field, bins=bins, range=range, weights=w, density=True)
-        # H = H.rechunk(bins//2.5)
-        # there is probably a more clever way to rechunk ...
+        H, edges = cp.histogram(field, bins=bins, range=range, weights=w, density=True)
         
         # saving
         if save is not None:
@@ -107,8 +100,8 @@ class Stats(Database):
         field1 and field2 must have the same shape.
         Note: for limiting error propagation, if saving, it won't be log10.
         '''
-        mod = self.set_module(field1)
-        w = self.duplicate(self.db['v_weight'], field1)
+        weight = cp.array(self.db['v_weight'])
+        w = self.duplicate(weight, field1)
         fields = [field1, field2, w]
 
         # slicing
@@ -122,24 +115,19 @@ class Stats(Database):
 
         # flattening the data    
         for i, field in enumerate(fields):
-            fields[i] = mod.ravel(field)
-        
-        if mod is da:
-             fields = self.prepare(fields)
+            fields[i] = cp.ravel(field)
 
         field1, field2, w = fields
-        H, xedges, yedges = mod.histogram2d(field1, field2, bins=bins, range=ranges, \
+        H, xedges, yedges = cp.histogram2d(field1, field2, bins=bins, range=ranges, \
                             weights=w**2, density=True)
         H = H.T
-        # H = H.rechunk(bins//2.5)
-        # there is probably a more clever way to rechunk ...
 
         # saving
         if save is not None:
             H.tofile(save)
 
         if log:
-            H = mod.log10(H)
+            H = cp.log10(H)
 
         return H, [xedges, yedges]
 
@@ -160,21 +148,15 @@ class Stats(Database):
             H1, edges1 = self.pdf(field1, slice, bins, ranges[0])
             H2, edges2 = self.pdf(field2, slice, bins, ranges[1])
 
-        mod = self.set_module(field1)
-
         # Repeating on the whole meshgrid
-        H1_f = mod.expand_dims(H1, axis=1)
-        H2_f = mod.expand_dims(H2, axis=0)
-        H1_f = mod.repeat(H1_f, len(H2), axis=1)
-        H2_f = mod.repeat(H2_f, len(H1), axis=0)
-        if mod is da:
-            H1_f = H1_f.rechunk(bins//2.5)
-            H2_f = H2_f.rechunk(bins//2.5)
-        # there is probably a more clever way to rechunk ...
+        H1_f = cp.expand_dims(H1, axis=1)
+        H2_f = cp.expand_dims(H2, axis=0)
+        H1_f = cp.repeat(H1_f, len(H2), axis=1)
+        H2_f = cp.repeat(H2_f, len(H1), axis=0)
 
         H = (H1_f*H2_f).T
         if log:
-            H = mod.log10(H)
+            H = cp.log10(H)
 
         if all:
             return H, [edges1, edges2], [H1, H2]
@@ -199,9 +181,8 @@ class Stats(Database):
 
         C = joint/marginal[0]
 
-        mod = self.set_module(field1)
         if log:
-            C = mod.log10(C)
+            C = cp.log10(C)
         
         if not all:
             return C, marginal[1] 
@@ -214,11 +195,6 @@ class Stats(Database):
         # this function is useful to reshape a field properly to
         # a target array (for the purpose of dealing with same dimensions)
         
-        mod = self.set_module(target)
-        # some objects in the db are not naturally dask arrays
-        if type(field).__name__ == 'ndarray' and mod is da:
-            field = da.from_array(field)
-
         # finding dimensions on which to copy initial array
         f1 = field.shape
         f2 = target.shape
@@ -227,17 +203,11 @@ class Stats(Database):
             if d not in f1:
                 ax.append(i)
         ax = tuple(ax)
-        field2 = mod.expand_dims(field, axis=ax)
+        field2 = cp.expand_dims(field, axis=ax)
 
         # duplicating
         for i in ax:
-            field2 = mod.repeat(field2, f2[i], axis=i)
-        if mod is da:
-            if rechunk:
-                new_chunk = field2.shape
-            else:
-                new_chunk = self.base_chunk
-            field2 = field2.rechunk(new_chunk)
+            field2 = cp.repeat(field2, f2[i], axis=i)
 
         return field2
 
@@ -249,18 +219,18 @@ class Stats(Database):
         '''
         This function should only be used for advanced conditional slices on the mesh. 
         (not base index ones)
-        np.where is mandatory for dask, it is not for traditional ndarrays.
         '''
         if type(condition).__name__ != 'ndarray':
             raise NotImplementedError('You are probably giving a real slice.\n\
                                        This function only operating on the mesh;\
                                        please provide a condition outputting an array (ex: field<=3)')
-        return field[:, :, :, np.where(condition)[0]]
+        return field[:, :, :, cp.where(condition)[0]]
 
     def repeat_slice(self, fields, condition):
         for i, field in enumerate(fields):
             fields[i] = self.advanced_slice(field, condition)
         return fields
+
     @staticmethod    
     def load_reshaped(pdf, n):
         '''
@@ -280,45 +250,10 @@ class Stats(Database):
         return edges
 
     @staticmethod
-    def prepare(tasks, persist=True):
-        '''
-        Prepare a set of tasks into a future object.
-        Each task must come from dask.
-
-        Note: it might be possible to parallelize here with dask.compute(*tasks)
-              but I don't know if it's a good idea + if it holds with persist method.
-        '''
-        if persist:
-            for i, task in enumerate(tasks):
-                tasks[i] = task.persist()
-        else:
-            for i, task in enumerate(tasks):
-                tasks[i] = task.compute()
-
-        return tasks
-
-    @staticmethod
     def get_range(A):
         Amin = A.min()
         Amax = A.max()
-        if type(A).__name__ == 'Array':
-            Amin = Amin.compute()
-            Amax = Amax.compute()
         return [Amin, Amax]
-
-    @staticmethod
-    def set_module(field):
-        '''
-        This function checks the nature of an object and selects the module which
-        fits best for calculations related to it.
-        '''
-        if type(field).__name__ not in ['ndarray', 'Array']:
-            raise NotImplementedError("It is not possible to deal with this kind of field.\n\
-                                       It must be either delayed through Dask or simply a numpy array.")
-        elif type(field).__name__ == 'ndarray':
-            return np
-        else:
-            return da
 
     def key_check(self, key):
         # checks if a key is present in the db
