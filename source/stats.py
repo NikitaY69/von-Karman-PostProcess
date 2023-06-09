@@ -74,7 +74,7 @@ class Stats(Database):
     '''
     For the pdfs, fields must be scalar ones.
     '''
-    def pdf(self, field, penal, slice=None, bins=1000, range=None, save=None):
+    def pdf(self, field, penal=1, slice=None, bins=1000, range=None, save=None):
 
         # general objects
         mod = self.set_module(field)
@@ -104,7 +104,7 @@ class Stats(Database):
 
         return H, edges
 
-    def joint_pdf(self, field1, field2, penal, slice=None, bins=1000, ranges=[None, None], \
+    def joint_pdf(self, field1, field2, penal=1, slice=None, bins=1000, ranges=[None, None], \
                   log=True, save=None):
         '''
         field1 and field2 must have the same shape.
