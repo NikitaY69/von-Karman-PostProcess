@@ -17,6 +17,7 @@ class Stats(Database):
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
 
         self.base_chunk = self.db['u']['field'].chunksize
+        self.w = self.db['v_weight']
 
     def norm(self, field, slice=None):
         mod = self.set_module(field)
@@ -24,7 +25,7 @@ class Stats(Database):
             field = self.advanced_slice(field, slice)
         return mod.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
-    def mean(self, field, slice=None, type='spatial'):
+    def mean(self, field, penal=1, slice=None, type='spatial'):
         '''
         Computing of a mean quantity along a certain axis depending on the type of averaging.
         field must have the same structure as typical objects of the db (ie self.dims).
@@ -43,9 +44,10 @@ class Stats(Database):
         w = None    
         if type != 'temporal':
             s = (2,3)   # P and N axis
-            w = self.duplicate(self.db['v_weight'], field)
+            w = self.duplicate(self.w, field)
             if slice is not None:
                 w = self.advanced_slice(w, slice)
+            w *= penal
 
         if slice is not None:
             field = self.advanced_slice(field, slice)
@@ -72,11 +74,12 @@ class Stats(Database):
     '''
     For the pdfs, fields must be scalar ones.
     '''
-    def pdf(self, field, slice=None, bins=1000, range=None, save=None):
+    def pdf(self, field, penal, slice=None, bins=1000, range=None, save=None):
 
         # general objects
         mod = self.set_module(field)
-        w = self.duplicate(self.db['v_weight'], field)
+        w = self.duplicate(self.w, field)
+        w *= penal
         fields = [field, w]
 
         # slicing
@@ -101,14 +104,15 @@ class Stats(Database):
 
         return H, edges
 
-    def joint_pdf(self, field1, field2, slice=None, bins=1000, ranges=[None, None], \
+    def joint_pdf(self, field1, field2, penal, slice=None, bins=1000, ranges=[None, None], \
                   log=True, save=None):
         '''
         field1 and field2 must have the same shape.
         Note: for limiting error propagation, if saving, it won't be log10.
         '''
         mod = self.set_module(field1)
-        w = self.duplicate(self.db['v_weight'], field1)
+        w = self.duplicate(self.w, field1)
+        w *= penal
         fields = [field1, field2, w]
 
         # slicing
@@ -192,7 +196,7 @@ class Stats(Database):
         if load:
             args[0], args[1] = field2
             joint = self.load_reshaped(field1, bins)
-            marginal = self.marginal_joint_pdf(*args)
+            marginaself.w = cp.array(self.db['v_weight'])l = self.marginal_joint_pdf(*args)
         else:
             joint = self.joint_pdf(*args[:-2])[0]
             marginal = self.marginal_joint_pdf(*args)
