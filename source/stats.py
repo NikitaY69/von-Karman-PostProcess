@@ -265,6 +265,7 @@ class Stats(Database):
         for i, field in enumerate(fields):
             fields[i] = self.advanced_slice(field, condition)
         return fields
+        
     @staticmethod    
     def load_reshaped(pdf, n):
         '''
