@@ -196,7 +196,7 @@ class Stats(Database):
         if load:
             args[0], args[1] = field2
             joint = self.load_reshaped(field1, bins)
-            marginaself.w = cp.array(self.db['v_weight'])l = self.marginal_joint_pdf(*args)
+            marginal = self.marginal_joint_pdf(*args)
         else:
             joint = self.joint_pdf(*args[:-2])[0]
             marginal = self.marginal_joint_pdf(*args)
