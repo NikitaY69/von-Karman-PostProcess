@@ -15,7 +15,7 @@ class Stats(Database):
         dims = list(self.db['u']['field'].shape) # u will always be present in any db
         dims[0] = int(dims[0]/3)
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
-
+        self.w = cp.array(self.db['v_weight'])
     '''
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     fields input in all the class methods MUST already be converted to cupy arrays.
@@ -27,7 +27,7 @@ class Stats(Database):
             field = self.advanced_slice(field, slice)
         return cp.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
-    def mean(self, field, slice=None, type='spatial'):
+    def mean(self, field, penal=1, slice=None, type='spatial'):
         '''
         Computing of a mean quantity along a certain axis depending on the type of averaging.
         field must have the same structure as typical objects of the db (ie self.dims).
@@ -40,11 +40,10 @@ class Stats(Database):
         w = None    
         if type != 'temporal':
             s = (2,3)   # P and N axis
-            weight = cp.array(self.db['v_weight'])
-            w = self.duplicate(weight, field)
+            w = self.duplicate(self.w, field)
             if slice is not None:
                 w = self.advanced_slice(w, slice)
-
+            w *= penal
         if slice is not None:
             field = self.advanced_slice(field, slice)
         avg = cp.average(field, axis=s, weights=w)
@@ -70,11 +69,11 @@ class Stats(Database):
     '''
     For the pdfs, fields must be scalar ones.
     '''
-    def pdf(self, field, slice=None, bins=1000, range=None, save=None):
+    def pdf(self, field, penal=1, slice=None, bins=1000, range=None, save=None):
         
         # general objects
-        weight = cp.array(self.db['v_weight'])
-        w = self.duplicate(weight, field)
+        w = self.duplicate(self.w, field)
+        w *= penal
         fields = [field, w]
 
         # slicing
@@ -94,14 +93,14 @@ class Stats(Database):
 
         return H, edges
 
-    def joint_pdf(self, field1, field2, slice=None, bins=1000, ranges=[None, None], \
+    def joint_pdf(self, field1, field2, penal, slice=None, bins=1000, ranges=[None, None], \
                   log=True, save=None):
         '''
         field1 and field2 must have the same shape.
         Note: for limiting error propagation, if saving, it won't be log10.
         '''
-        weight = cp.array(self.db['v_weight'])
-        w = self.duplicate(weight, field1)
+        w = self.duplicate(self.w, field1)
+        w *= penal
         fields = [field1, field2, w]
 
         # slicing
