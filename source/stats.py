@@ -147,8 +147,48 @@ class Stats(Database):
 
         return H, [xedges, yedges]
 
-    def marginal_joint_pdf(self, field1, field2, slice=None, bins=1000, ranges=[None,None],\
-                           log=False, load=True, all=False):
+    def conditional_avg(self, field1, field2, penal=1, slice=None, y=True, bins=1000, \
+                        ranges=[None,None], load=True):
+        '''
+        Computes E(field1|field2)
+        y parameter tells if the variable to be conditionned is on the x or y axis.
+        '''
+        mod = self.set_module(field1)
+
+        # gathering the pdfs
+        if load:
+            # in this case field1 is the joint_pdf and field2 is the pdf of field2
+            joint, pdf2 = field1, field2
+            # you need to provide the ranges for the function to compute the edges
+            if ranges[0] is None or ranges[1] is None:
+                raise ValueError('When loading, you need to provide the ranges for each field.\
+                                  Cannot compute the range based on an histogram only.')
+            edges1, edges2 = self.compute_edges(bins, ranges)
+        else:
+            joint, [edges1, edges2] = self.joint_pdf(field1, field2, penal, slice, bins, ranges, False)
+            pdf2, edges2 = self.pdf(field2, penal, slice, bins, ranges[1])
+
+        # generate on whole meshgrid
+        pdf2_f = mod.expand_dims(pdf2, axis=0)
+        pdf2_f = mod.repeat(pdf2_f, bins, axis=0)
+        if mod is da:
+            pdf2_f = pdf2_f.rechunk(bins//2.5)
+
+        # computing conditional probability
+        ax = 0
+        if y:
+            pdf2_f = pdf2_f.T
+            ax = 1
+        one_given_two = joint/pdf2_f
+        return one_given_two
+        # expectation
+        # d1 = edges1[1]-edges1[0]
+        # ech1 = np.array([(edges1[i]+edges1[i+1])/2 for i in range(len(edges1)-1)])
+
+        # return mod.average(one_given_two, axis=ax, weights=ech1*d1)*np.sum(ech1*d1)
+
+    def marginal_joint_pdf(self, field1, field2, penal=1, slice=None, bins=1000, \
+                           ranges=[None,None], log=False, load=True, all=False):
 
         # gathering the marginal pdfs
         if load:
@@ -161,16 +201,16 @@ class Stats(Database):
             edges1, edges2 = self.compute_edges(bins, ranges)
 
         else:
-            H1, edges1 = self.pdf(field1, slice, bins, ranges[0])
-            H2, edges2 = self.pdf(field2, slice, bins, ranges[1])
+            H1, edges1 = self.pdf(field1, penal, slice, bins, ranges[0])
+            H2, edges2 = self.pdf(field2, penal, slice, bins, ranges[1])
 
         mod = self.set_module(field1)
 
         # Repeating on the whole meshgrid
         H1_f = mod.expand_dims(H1, axis=1)
         H2_f = mod.expand_dims(H2, axis=0)
-        H1_f = mod.repeat(H1_f, len(H2), axis=1)
-        H2_f = mod.repeat(H2_f, len(H1), axis=0)
+        H1_f = mod.repeat(H1_f, bins, axis=1)
+        H2_f = mod.repeat(H2_f, bins, axis=0)
         if mod is da:
             H1_f = H1_f.rechunk(bins//2.5)
             H2_f = H2_f.rechunk(bins//2.5)
