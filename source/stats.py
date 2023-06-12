@@ -136,8 +136,6 @@ class Stats(Database):
         Computes E(field1|field2)
         y parameter tells if the variable to be conditionned is on the x or y axis.
         '''
-        mod = self.set_module(field1)
-
         # gathering the pdfs
         if load:
             # in this case field1 is the joint_pdf and field2 is the pdf of field2
@@ -152,10 +150,8 @@ class Stats(Database):
             pdf2, edges2 = self.pdf(field2, penal, slice, bins, ranges[1])
 
         # generate on whole meshgrid
-        pdf2_f = mod.expand_dims(pdf2, axis=0)
-        pdf2_f = mod.repeat(pdf2_f, bins, axis=0)
-        if mod is da:
-            pdf2_f = pdf2_f.rechunk(bins//2.5)
+        pdf2_f = cp.expand_dims(pdf2, axis=0)
+        pdf2_f = cp.repeat(pdf2_f, bins, axis=0)
 
         # computing conditional probability
         ax = 0
@@ -269,7 +265,7 @@ class Stats(Database):
         for i, field in enumerate(fields):
             fields[i] = self.advanced_slice(field, condition)
         return fields
-        
+
     @staticmethod    
     def load_reshaped(pdf, n):
         '''
