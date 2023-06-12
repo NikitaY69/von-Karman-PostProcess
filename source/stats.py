@@ -58,18 +58,18 @@ class Stats(Database):
             # if its 'both', you need to temporally average the spatial average
             return mod.average(avg, axis=None, weights=None)
     
-    def moment(self, field, type, n, raw=True):
+    def moment(self, field, penal=1, slice=None, n=2, type='spatial', raw=True):
         # same principle as in mean function
         self.mean_type_check(type)
 
         if raw:
             avg = 0
         else:
-            avg = self.mean(field, type)
+            avg = self.mean(field, penal, slice, type)
             avg = self.duplicate(avg, field)
         to_compute = (field - avg)**n
 
-        return self.mean(to_compute, type)
+        return self.mean(to_compute, penal, slice, type)
 
     '''
     For the pdfs, fields must be scalar ones.
