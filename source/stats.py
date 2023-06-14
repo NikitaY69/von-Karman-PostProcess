@@ -150,7 +150,7 @@ class Stats(Database):
 
         return H, [xedges, yedges]
 
-    def extract_pdf(self, joint, ranges, which):
+    def extract_pdf(self, joint, which, ranges):
         '''
         Extracts the marginals from a joint_pdf between (f1 and f2)
         which tells which marginal to extract:
@@ -174,25 +174,26 @@ class Stats(Database):
         joint being the joint_pdf of A and B.
         '''
         mod = self.set_module(joint)
+        rev_range = {0:1, 1:0}
         if which not in [0,1]:
             raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n\
                               which = 0 returns E(f2|f1)\n\
                               which = 1 returns E(f1|f2)')
+                              
         # gathering the pdfs
         if load:
-            # extracting the marginal pdf of conditioned field
-            pdf2 = self.extract_pdf(joint, ranges, which)
-            # you need to provide the ranges for the function to compute the edges
+            # you need to provide the ranges for the function to compute the pdfs
             if ranges[0] is None or ranges[1] is None:
                 raise ValueError('When loading, you need to provide the ranges for each field.\
                                   Cannot compute the range based on an histogram only.')
-            edges1, edges2 = self.compute_edges(bins, ranges)
+            # extracting the marginal pdf of conditioned field
+            pdf2 = self.extract_pdf(joint, which, ranges)
 
         # else:
         #     joint, [edges1, edges2] = self.joint_pdf(field1, field2, penal, slice, bins, ranges, False)
         #     # this in case ranges is initially [None, None]
         #     ranges = [[edges1[0], edges1[-1]], [edges2[0], edges2[1]]]
-        #     pdf2 = self.extract_pdf(joint, ranges, which)
+        #     pdf2 = self.extract_pdf(joint, which, ranges)
 
         # generate on whole meshgrid
         pdf2_f = mod.expand_dims(pdf2, axis=0)
@@ -207,7 +208,8 @@ class Stats(Database):
         one_given_two = mod.nan_to_num(one_given_two) # converting nans to 0s
 
         # expectation
-        d1 = edges1[1]-edges1[0] # delta field1
+        edges1 = self.compute_edges(bins, [ranges[rev_range[which]]][0])
+        d1 = edges1[1]-edges1[0] # delta field1 assuming linspaces!!!!
         ech1 = mod.array([(edges1[i]+edges1[i+1])/2 for i in range(bins)])
         # ech1 gathers the mid point of each bin from field1
 
@@ -224,8 +226,8 @@ class Stats(Database):
             if ranges[0] is None or ranges[1] is None:
                 raise ValueError('When loading, you need to provide the ranges for each field.\
                                   Cannot compute the range based on an histogram only.')
-            H1 = self.extract_pdf(joint, ranges, 0)
-            H2 = self.extract_pdf(joint, ranges, 1)
+            H1 = self.extract_pdf(joint, 0, ranges)
+            H2 = self.extract_pdf(joint, 1, ranges)
             
         # else:
         #     H1, edges1 = self.pdf(field1, penal, slice, bins, ranges[0])
