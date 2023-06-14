@@ -180,12 +180,13 @@ class Stats(Database):
             pdf2_f = pdf2_f.T
             ax = 1
         one_given_two = joint/pdf2_f
-        return one_given_two
-        # expectation
-        # d1 = edges1[1]-edges1[0]
-        # ech1 = np.array([(edges1[i]+edges1[i+1])/2 for i in range(len(edges1)-1)])
 
-        # return mod.average(one_given_two, axis=ax, weights=ech1*d1)*np.sum(ech1*d1)
+        # expectation
+        d1 = edges1[1]-edges1[0] # delta field1
+        ech1 = np.array([(edges1[i]+edges1[i+1])/2 for i in range(len(edges1)-1)])
+        # ech1 gathers the mid point of each bin from field1
+
+        return mod.average(one_given_two, axis=ax, weights=ech1*d1)*np.sum(ech1*d1)
 
     def marginal_joint_pdf(self, field1, field2, penal=1, slice=None, bins=1000, \
                            ranges=[None,None], log=False, load=True, all=False):
