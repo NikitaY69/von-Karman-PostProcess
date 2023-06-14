@@ -208,7 +208,7 @@ class Stats(Database):
         one_given_two = mod.nan_to_num(one_given_two) # converting nans to 0s
 
         # expectation
-        edges1 = self.compute_edges(bins, [ranges[rev_range[which]]][0])
+        edges1 = self.compute_edges(bins, [ranges[rev_range[which]]])[0]
         d1 = edges1[1]-edges1[0] # delta field1 assuming linspaces!!!!
         ech1 = mod.array([(edges1[i]+edges1[i+1])/2 for i in range(bins)])
         # ech1 gathers the mid point of each bin from field1
