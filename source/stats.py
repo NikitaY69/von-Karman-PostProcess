@@ -180,6 +180,7 @@ class Stats(Database):
             pdf2_f = pdf2_f.T
             ax = 1
         one_given_two = joint/pdf2_f
+        one_given_two = mod.nan_to_num(one_given_two) # converting nans to 0s
 
         # expectation
         d1 = edges1[1]-edges1[0] # delta field1
