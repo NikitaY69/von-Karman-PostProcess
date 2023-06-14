@@ -103,7 +103,7 @@ class Stats(Database):
             H.tofile(save)
 
         return H, edges
-
+    
     def joint_pdf(self, field1, field2, penal=1, slice=None, bins=1000, ranges=[None, None], \
                   log=True, save=None):
         '''
@@ -146,6 +146,22 @@ class Stats(Database):
             H = mod.log10(H)
 
         return H, [xedges, yedges]
+
+    def extract_pdf(self, joint, ranges, which):
+        # extracts the marginals from a joint_pdf between (f1 and f2)
+        # which tells which marginal to extract:
+        # 0 returns f1 while 1 return f2
+        if which not in [0,1]:
+            raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n\
+                              which = 0 returns marg(f1)\n\
+                              which = 1 returns marg(f2)')
+
+        mod = self.set_module(joint)
+        rev_range = {0:1, 1:0}
+        f_range = self.compute_edges(joint.shape[0], [ranges[rev_range[which]]])[0]
+        df = f_range[1]-f_range[0] # assuming linspaces!!!!
+
+        return mod.sum(joint*df, axis=which)
 
     def conditional_avg(self, field1, field2, penal=1, slice=None, y=True, bins=1000, \
                         ranges=[None,None], load=True):
