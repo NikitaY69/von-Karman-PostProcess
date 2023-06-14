@@ -1,7 +1,6 @@
 from database import Database
 import numpy as np
 import cupy as cp
-import dask.array as da
 
 class Stats(Database):
     def __init__(self, src):
@@ -70,7 +69,9 @@ class Stats(Database):
     For the pdfs, fields must be scalar ones.
     '''
     def pdf(self, field, penal=1, slice=None, bins=1000, range=None, save=None):
-        
+        '''
+        Computes pdf(field).
+        '''
         # general objects
         w = self.duplicate(self.w, field)
         w *= penal
@@ -92,10 +93,11 @@ class Stats(Database):
             H.tofile(save)
 
         return H, edges
-
+    
     def joint_pdf(self, field1, field2, penal=1, slice=None, bins=1000, ranges=[None, None], \
                   log=True, save=None):
         '''
+        Computes joint(field1, field2).
         field1 and field2 must have the same shape.
         Note: for limiting error propagation, if saving, it won't be log10.
         '''
@@ -130,101 +132,115 @@ class Stats(Database):
 
         return H, [xedges, yedges]
 
-    def conditional_avg(self, field1, field2, penal=1, slice=None, y=True, bins=1000, \
-                        ranges=[None,None], load=True):
+    def extract_pdf(self, joint, which, ranges):
         '''
-        Computes E(field1|field2)
-        y parameter tells if the variable to be conditionned is on the x or y axis.
+        Extracts the marginals from a joint_pdf between (f1 and f2)
+        which tells which marginal to extract:
+        0 returns f1 while 1 return f2
         '''
+        if which not in [0,1]:
+            raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n\
+                              which = 0 returns marg(f1)\n\
+                              which = 1 returns marg(f2)')
+
+        rev_range = {0:1, 1:0}
+        f_range = self.compute_edges(joint.shape[0], [ranges[rev_range[which]]])[0]
+        df = f_range[1]-f_range[0] # assuming linspaces!!!!
+
+        return cp.sum(joint*df, axis=which)
+
+    def conditional_avg(self, joint, which, bins=1000, ranges=[None,None], load=True):
+        '''
+        Computes E(A|B) where B is the field which lies on axis 'which' -
+        joint being the joint_pdf of A and B.
+        '''
+        rev_range = {0:1, 1:0}
+        if which not in [0,1]:
+            raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n\
+                              which = 0 returns E(f2|f1)\n\
+                              which = 1 returns E(f1|f2)')
+                              
         # gathering the pdfs
         if load:
-            # in this case field1 is the joint_pdf and field2 is the pdf of field2
-            joint, pdf2 = field1, field2
-            # you need to provide the ranges for the function to compute the edges
+            # you need to provide the ranges for the function to compute the pdfs
             if ranges[0] is None or ranges[1] is None:
                 raise ValueError('When loading, you need to provide the ranges for each field.\
                                   Cannot compute the range based on an histogram only.')
-            edges1, edges2 = self.compute_edges(bins, ranges)
-        else:
-            joint, [edges1, edges2] = self.joint_pdf(field1, field2, penal, slice, bins, ranges, False)
-            pdf2, edges2 = self.pdf(field2, penal, slice, bins, ranges[1])
+            # extracting the marginal pdf of conditioned field
+            pdf2 = self.extract_pdf(joint, which, ranges)
+
+        # else:
+        #     joint, [edges1, edges2] = self.joint_pdf(field1, field2, penal, slice, bins, ranges, False)
+        #     # this in case ranges is initially [None, None]
+        #     ranges = [[edges1[0], edges1[-1]], [edges2[0], edges2[1]]]
+        #     pdf2 = self.extract_pdf(joint, which, ranges)
 
         # generate on whole meshgrid
         pdf2_f = cp.expand_dims(pdf2, axis=0)
         pdf2_f = cp.repeat(pdf2_f, bins, axis=0)
 
         # computing conditional probability
-        ax = 0
-        if y:
+        if which == 1:
             pdf2_f = pdf2_f.T
-            ax = 1
         one_given_two = joint/pdf2_f
-        return one_given_two
+        one_given_two = cp.nan_to_num(one_given_two) # converting nans to 0s
+
         # expectation
-        # d1 = edges1[1]-edges1[0]
-        # ech1 = np.array([(edges1[i]+edges1[i+1])/2 for i in range(len(edges1)-1)])
+        edges1 = self.compute_edges(bins, [ranges[rev_range[which]]])[0]
+        d1 = edges1[1]-edges1[0] # delta field1 assuming linspaces!!!!
+        ech1 = cp.array([(edges1[i]+edges1[i+1])/2 for i in range(bins)])
+        # ech1 gathers the mid point of each bin from field1
 
-        # return mod.average(one_given_two, axis=ax, weights=ech1*d1)*np.sum(ech1*d1)
+        return cp.average(one_given_two, axis=which, weights=ech1*d1)*cp.sum(ech1*d1)
 
-    def marginal_joint_pdf(self, field1, field2, penal=1, slice=None, bins=1000, \
-                           ranges=[None,None], log=False, load=True, all=False):
-
+    def marginal_joint_pdf(self, joint, bins=1000, ranges=[None,None], log=False, \
+                           load=True):
+        '''
+        Computes pdfA*pdfB on the whole meshgrid defining joint(A,B).
+        '''
         # gathering the marginal pdfs
         if load:
-            # in this case, field1 and field2 are already the marginal pdfs NOT the fields
-            H1, H2 = field1, field2
-            # you need to provide the ranges for the function to compute the edges
+            # you need to provide the ranges for the function to compute the pdfs
             if ranges[0] is None or ranges[1] is None:
                 raise ValueError('When loading, you need to provide the ranges for each field.\
                                   Cannot compute the range based on an histogram only.')
-            edges1, edges2 = self.compute_edges(bins, ranges)
-
-        else:
-            H1, edges1 = self.pdf(field1, penal, slice, bins, ranges[0])
-            H2, edges2 = self.pdf(field2, penal, slice, bins, ranges[1])
+            H1 = self.extract_pdf(joint, 0, ranges)
+            H2 = self.extract_pdf(joint, 1, ranges)
+            
+        # else:
+        #     H1, edges1 = self.pdf(field1, penal, slice, bins, ranges[0])
+        #     H2, edges2 = self.pdf(field2, penal, slice, bins, ranges[1])
 
         # Repeating on the whole meshgrid
         H1_f = cp.expand_dims(H1, axis=1)
         H2_f = cp.expand_dims(H2, axis=0)
-        H1_f = cp.repeat(H1_f, len(H2), axis=1)
-        H2_f = cp.repeat(H2_f, len(H1), axis=0)
+        H1_f = cp.repeat(H1_f, bins, axis=1)
+        H2_f = cp.repeat(H2_f, bins, axis=0)
 
         H = (H1_f*H2_f).T
         if log:
             H = cp.log10(H)
 
-        if all:
-            return H, [edges1, edges2], [H1, H2]
-        else:
-            return H, [edges1, edges2]
+        return H
 
-    def correlations(self, field1, field2, slice=None, bins=1000, ranges=[None,None], log=True,\
-                     load=True, all=False):
+    def correlations(self, joint, bins=1000, ranges=[None,None], log=True, load=True):
         '''
-        If loading, field1 is the joint_pdf and field2 = [field1, field2],
-        where field1 and field2 are the real fields of interest.
-        This is really bad.
+        Computes joint(A,B)/pdfA*pdfB.
         '''
-        args = [field1, field2, slice, bins, ranges, False, load, all]
+        # args = [field1, field2, penal, slice, bins, ranges, False, load, all]
         if load:
-            args[0], args[1] = field2
-            joint = self.load_reshaped(field1, bins)
-            marginal = self.marginal_joint_pdf(*args)
-        else:
-            joint = self.joint_pdf(*args[:-2])[0]
-            marginal = self.marginal_joint_pdf(*args)
+            # args[0], args[1] = field2
+            marginal = self.marginal_joint_pdf(joint, bins, ranges)
+        # else:
+        #     joint = self.joint_pdf(*args[:-2])[0]
+        #     marginal = self.marginal_joint_pdf(*args)
 
-        C = joint/marginal[0]
+        C = joint/marginal
 
         if log:
             C = cp.log10(C)
         
-        if not all:
-            return C, marginal[1] 
-            # Corr - [edges]
-        else:
-            return C, marginal[1], joint, marginal[2]
-            # Corr - [edges] - joint_pdf - [marginal_pdfs]
+        return C
 
     def duplicate(self, field, target, rechunk=False):
         # this function is useful to reshape a field properly to
