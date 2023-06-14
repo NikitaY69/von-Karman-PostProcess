@@ -225,14 +225,14 @@ class Stats(Database):
         else:
             return H, [edges1, edges2]
 
-    def correlations(self, field1, field2, slice=None, bins=1000, ranges=[None,None], log=True,\
-                     load=True, all=False):
+    def correlations(self, field1, field2, penal=1, slice=None, bins=1000,\
+                     ranges=[None,None], log=True, load=True, all=False):
         '''
         If loading, field1 is the joint_pdf and field2 = [field1, field2],
         where field1 and field2 are the real fields of interest.
         This is really bad.
         '''
-        args = [field1, field2, slice, bins, ranges, False, load, all]
+        args = [field1, field2, penal, slice, bins, ranges, False, load, all]
         if load:
             args[0], args[1] = field2
             joint = self.load_reshaped(field1, bins)
