@@ -287,7 +287,7 @@ class Stats(Database):
         '''
         Reshapes a flattened pdf coming from np.fromfile to a n*n 2d pdf.
         '''
-        H = np.empty(shape=(n,n))
+        H = cp.empty(shape=(n,n))
         # rebuilding
         for l in range(n):
             H[l, :] = pdf[l*n:(l+1)*n]
