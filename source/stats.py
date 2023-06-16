@@ -302,8 +302,8 @@ class Stats(Database):
 
     @staticmethod
     def get_range(A):
-        Amin = A.min()
-        Amax = A.max()
+        Amin = cp.nanmin(A)
+        Amax = cp.nanmax(A)
         return [Amin, Amax]
 
     def key_check(self, key):
