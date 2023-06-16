@@ -361,11 +361,12 @@ class Stats(Database):
 
     @staticmethod
     def get_range(A):
-        Amin = A.min()
-        Amax = A.max()
-        if type(A).__name__ == 'Array':
-            Amin = Amin.compute()
-            Amax = Amax.compute()
+        if type(A).__module__ == 'numpy':
+            Amin = np.nanmin(A)
+            Amax = np.nanmax(A)
+        else:
+            Amin = da.nanmin(A).compute()
+            Amax = da.nanmax(A).compute()
         return [Amin, Amax]
 
     @staticmethod
