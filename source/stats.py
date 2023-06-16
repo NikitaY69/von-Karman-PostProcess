@@ -31,11 +31,6 @@ class Stats(Database):
         field must have the same structure as typical objects of the db (ie self.dims).
         If field was built on a peculiar slicing, the input must still respect self.dims
         NOTE: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :]
-
-        Note for improvement:
-        I need to rethink the database so that computed quantities can also be stored.
-        For example, when you compute n-th non-raw moments, it will be stupid to compute
-        the mean for each computation ...
         '''
         self.mean_type_check(type)
         mod = self.set_module(field)
@@ -347,7 +342,7 @@ class Stats(Database):
         Prepare a set of tasks into a future object.
         Each task must come from dask.
 
-        Note: it might be possible to parallelize here with dask.compute(*tasks)
+        NOTE: it might be possible to parallelize here with dask.compute(*tasks)
               but I don't know if it's a good idea + if it holds with persist method.
         '''
         if persist:
