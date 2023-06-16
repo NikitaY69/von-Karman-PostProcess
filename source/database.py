@@ -17,7 +17,7 @@ class Database():
         '''
         try:
             # directly loading
-            self.db = self.load(src)
+            self.db = self.load_db(src)
         except:
             # if not, create a first db
             self.raw_path = src
@@ -32,7 +32,7 @@ class Database():
             space = kwargs.get('space', 'phys') # 'phys' or 'fourier'
             self.make(sfx, dict_name, space)
 
-    def load(self, src):
+    def load_db(self, src):
         return pickle.load(open(src, 'rb'))
 
     def make(self, sfx, dict_name, space):
