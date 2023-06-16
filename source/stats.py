@@ -272,7 +272,7 @@ class Stats(Database):
         
         mod = self.set_module(target)
         # some objects in the db are not naturally dask arrays
-        if type(field).__name__ == 'ndarray' and mod is da:
+        if type(field).__module__ == 'numpy' and mod is da:
             field = da.from_array(field)
 
         # finding dimensions on which to copy initial array
@@ -370,10 +370,10 @@ class Stats(Database):
         This function checks the nature of an object and selects the module which
         fits best for calculations related to it.
         '''
-        if type(field).__name__ not in ['ndarray', 'Array']:
+        if type(field).__module__ not in ['numpy', 'dask.array.core']:
             raise NotImplementedError("It is not possible to deal with this kind of field.\n\
                                        It must be either delayed through Dask or simply a numpy array.")
-        elif type(field).__name__ == 'ndarray':
+        elif type(field).__module__ == 'numpy':
             return np
         else:
             return da
