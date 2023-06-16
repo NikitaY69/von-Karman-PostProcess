@@ -30,7 +30,7 @@ class Stats(Database):
         Computing of a mean quantity along a certain axis depending on the type of averaging.
         field must have the same structure as typical objects of the db (ie self.dims).
         If field was built on a peculiar slicing, the input must still respect self.dims
-        (tip: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :])
+        NOTE: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :]
 
         Note for improvement:
         I need to rethink the database so that computed quantities can also be stored.
@@ -111,7 +111,7 @@ class Stats(Database):
         '''
         Computes joint(field1, field2).
         field1 and field2 must have the same shape.
-        Note: for limiting error propagation, if saving, it won't be log10.
+        NOTE: for limiting error propagation, if saving, it won't be log10.
         '''
         mod = self.set_module(field1)
         w = self.duplicate(self.w, field1)
