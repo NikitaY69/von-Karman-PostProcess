@@ -310,8 +310,6 @@ class Stats(Database):
         # checks if a key is present in the db
         if key not in self.db.keys():
             raise ValueError('This key does not belong to the database.\n\
-                              You cannot compute the norm of a field external to the db\
-                              (for example, a field you manually builded).\n\
                               Please check self.db.keys().')
     
     def mean_type_check(self, type):

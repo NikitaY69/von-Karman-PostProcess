@@ -16,5 +16,5 @@ class Calculations(Stats):
         src: original SFEMaNS db connector path
         tree_dir: calculations db connector path
         '''
-        Calculations.__init__(self, src)
+        Stats.__init__(self, src)
     
