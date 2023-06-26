@@ -188,7 +188,7 @@ class Database():
             temp_field.append(da.stack(f).T)
         temp_field = da.vstack(temp_field).T
         # at this point shape is (D*T,P,Ntot)
-        field = da.empty(shape=(D,T,P,sum(N)), chunks=(1,1,P,sum(N)//16))
+        field = da.empty(shape=(D,T,P,sum(N)), chunks=(1,1,1,sum(N)))
         for d in range(D):
             for t in range(T):
                 field[d,t] = temp_field[T*d + t]
