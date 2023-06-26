@@ -21,9 +21,7 @@ class Stats(Database):
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     '''
 
-    def norm(self, field, slice=None):
-        if slice is not None:
-            field = self.advanced_slice(field, slice)
+    def norm(self, field):
         return cp.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
     def mean(self, field, penal=1, slice=None, type='spatial'):
