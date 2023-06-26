@@ -27,7 +27,7 @@ class Database():
             self.P = 2*self.M - 1 # phys
 
             # misc params for db creation
-            sfx = kwargs.get('sfx')
+            sfx = kwargs.get('sfx', '')
             dict_name = kwargs.get('dic')
             space = kwargs.get('space', 'phys') # 'phys' or 'fourier'
             self.make(sfx, dict_name, space)
