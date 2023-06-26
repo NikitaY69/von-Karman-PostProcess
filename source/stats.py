@@ -363,10 +363,11 @@ class Stats(Database):
         if type(A).__module__ == 'numpy':
             Amin = np.nanmin(A)
             Amax = np.nanmax(A)
+            return [Amin, Amax]
         else:
-            Amin = da.nanmin(A).compute()
-            Amax = da.nanmax(A).compute()
-        return [Amin, Amax]
+            Amin = da.nanmin(A)
+            Amax = da.nanmax(A)
+            return dask.compute(Amin, Amax)
 
     @staticmethod
     def set_module(field):
