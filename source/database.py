@@ -29,18 +29,20 @@ class Database():
 
             # misc params for db creation
             sfx = kwargs.get('sfx', '')
-            dict_name = kwargs.get('dic')
-            space = kwargs.get('space', 'phys') # 'phys' or 'fourier'
+            self.dic = kwargs.get('dic')
+            self.space = kwargs.get('space', 'phys') # 'phys' or 'fourier'
             test_mode = kwargs.get('test_mode', False)
-            self.make(sfx, dict_name, space, test_mode)
+            self.make(sfx, test_mode)
 
     def load_db(self, src):
         return pickle.load(open(src, 'rb'))
 
-    def make(self, sfx, dict_name, space, test_mode=False):
+    def make(self, sfx, test_mode=False):
         '''
         Please note that all the data dirs must be subs of the raw_path tree structure.
         '''
+        dict_name = self.dic
+        space = self.space
         global_path = self.raw_path + sfx
         dict_path = self.db_path + dict_name
         sort_with = {"r" : 0 , "z" : 1, "w":2}
@@ -65,7 +67,7 @@ class Database():
         
         # save spatio-temporal and weight axes
         self.save_axes(sorting_method, dict_path, v_axes, h_axes, v_args, h_args) 
-        end = -1
+        end = None
         if test_mode:
             end = 2
         for field_name in field_files[:end]:
