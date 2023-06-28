@@ -344,13 +344,17 @@ class Stats(Database):
     def get_range(self, A):
         if self.stat == 'penal':
             # penal
-            A = cp.putmask(A, self.penal == 0, np.nan)
+            B = A
+            cp.putmask(B, self.penal == 0, np.nan)
         elif self.slice is not None:
             # bulk or interior
-            A = self.advanced_slice(A, self.slice)
-        Amin = cp.nanmin(A)
-        Amax = cp.nanmax(A)
-        return [Amin, Amax]
+            B = self.advanced_slice(A, self.slice)
+        min = cp.nanmin(B)
+        max = cp.nanmax(B)
+        # freeing memory
+        del B
+        cp._default_memory_pool.free_all_blocks()
+        return [min, max]
 
     @staticmethod    
     def load_reshaped(pdf, n):
