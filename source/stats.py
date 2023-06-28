@@ -344,11 +344,13 @@ class Stats(Database):
     def get_range(self, A):
         if self.stat == 'penal':
             # penal
-            B = A
+            self.check_penal(A)
+            B = cp.copy(A)
             cp.putmask(B, self.penal == 0, np.nan)
         elif self.slice is not None:
             # bulk or interior
             B = self.advanced_slice(A, self.slice)
+        B = A
         min = cp.nanmin(B)
         max = cp.nanmax(B)
         # freeing memory
