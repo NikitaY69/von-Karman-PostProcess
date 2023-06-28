@@ -60,7 +60,7 @@ class Stats(Database):
         if raw:
             avg = 0
         else:
-            avg = self.mean(field, penal, slice, type)
+            avg = self.mean(field, penal, type)
             avg = self.duplicate(avg, field)
         to_compute = (field - avg)**n
 
