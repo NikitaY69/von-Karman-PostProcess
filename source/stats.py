@@ -3,18 +3,22 @@ import numpy as np
 import cupy as cp
 
 class Stats(Database):
-    def __init__(self, src):
+    def __init__(self, src, stat):
         '''
         This class incorporates useful computations related to the statistics of 
         1-component fields.
         Typical dimensions for 1-component fields are (1, T, P, N_P)
         (Reminder: 3-components fields are concatenations of the base ones)
+
+        stat is the type of statistics the post-processing is being made 
+        (bulk, interior, penal or full; cf. report)
         '''
         Database.__init__(self, src)
         dims = list(self.db['u']['field'].shape) # u will always be present in any db
         dims[0] = int(dims[0]/3)
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
         self.w = cp.array(self.db['v_weight'])
+        self.set_stats(stat)    # setting the type of statistics used throughout the PP
     '''
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     fields input in all the class methods MUST already be converted to cupy arrays.
@@ -243,7 +247,7 @@ class Stats(Database):
             C = cp.log10(C)
         
         return C
-
+        
     def duplicate(self, field, target, rechunk=False):
         # this function is useful to reshape a field properly to
         # a target array (for the purpose of dealing with same dimensions)
@@ -264,13 +268,43 @@ class Stats(Database):
 
         return field2
 
+    def set_stats(self, type):
+        '''
+        This function sets the type of statistics used throughout a post-processing session.
+        Useful for easing the inputing of slices and penalizations on computations.
+        '''
+        self.slice = None
+        self.penal = 1
+        mesh_r = cp.array(self.db['vr_axis'])
+        mesh_z = cp.array(self.db['vz_axis'])
+
+        if type not in ['bulk', 'interior', 'penal', 'full']:
+            raise NotImplementedError('This sub-space of statistics is not implemented.\n\
+                                    Please refer to the section 3.1.3 of my report.')
+        elif type == 'bulk':
+            self.slice = cp.logical_and(mesh_r <= 0.1, cp.abs(mesh_z) <= 0.1) 
+        elif type == 'interior':
+            self.slice = cp.abs(mesh_z) <= 0.69
+        elif type == 'penal':
+            self.penal = self.db['D001_penal']['field']
+            # Not sure if penal is called the same on each SFEMaNS run
+
+    def set_penal(self, s):
+        '''
+        Computing the penalization as a real indicator function on a peculiar sub-space s.
+        '''
+        penal = self.penal[s].compute()
+        self.penal = cp.array(penal, copy=False)
+        self.penal[penal<0.8] = 0
+        self.penal[penal!=0] = 1
+        
     '''
     The following 2 methods are class instances because of their close link
     to the database structure (1, T, P, N).
     '''
     def advanced_slice(self, field, condition):
         '''
-        This function should only be used for advanced conditional slices on the mesh. 
+        This function should only be used for advanced conditional slices ON THE MESH.
         (not base index ones)
         '''
         if type(condition).__name__ != 'ndarray':
