@@ -442,7 +442,6 @@ class Stats(Database):
     @staticmethod
     def mid_points(edges):
         n = len(edges)-1
-        edges = edges.get()
         return np.array([(edges[i]+edges[i+1])/2 for i in range(n)])
 
     def key_check(self, key):
