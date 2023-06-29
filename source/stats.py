@@ -23,10 +23,8 @@ class Stats(Database):
         self.w = self.db['v_weight']
         self.set_stats(stat)
 
-    def norm(self, field, slice=None):
+    def norm(self, field):
         mod = self.set_module(field)
-        if slice is not None:
-            field = self.advanced_slice(field, slice)
         return mod.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
     def mean(self, field, type='spatial'):
@@ -48,7 +46,7 @@ class Stats(Database):
             if self.slice is not None:
                 w = self.advanced_slice(w, self.slice)
             w *= self.penal
-        if slice is not None:
+        if self.slice is not None:
             field = self.advanced_slice(field, self.slice)
         avg = mod.average(field, axis=s, weights=w)
         if type != 'both':
