@@ -374,6 +374,9 @@ class Stats(Database):
         return fields
 
     def get_range(self, A):
+        '''
+        TODO: generalize get_range for delayed arrays
+        '''
         if self.stat == 'penal':
             # penal
             self.check_penal(A)
