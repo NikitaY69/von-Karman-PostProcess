@@ -10,4 +10,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate statistics
 
 cd /mnt/beegfs/home/allaglo/sfemans_ai/nikita
-jupyter notebook --no-browser --port=8890 --ip=0.0.0.0 --NotebookApp.allow_origin='*'
+jupyter notebook --no-browser --port=8890 --ip=0.0.0.0
