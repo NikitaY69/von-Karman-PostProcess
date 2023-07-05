@@ -149,9 +149,9 @@ class Stats(Database):
         0 returns f1 while 1 return f2
         '''
         if which not in [0,1]:
-            raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n\
-                              which = 0 returns marg(f1)\n\
-                              which = 1 returns marg(f2)')
+            raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n' + \
+                              'which = 0 returns marg(f1)\n' + \
+                              'which = 1 returns marg(f2)')
 
         rev_range = {0:1, 1:0}
         f_range = self.compute_edges(joint.shape[0], [ranges[rev_range[which]]])[0]
@@ -166,16 +166,16 @@ class Stats(Database):
         '''
         rev_range = {0:1, 1:0}
         if which not in [0,1]:
-            raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n\
-                              which = 0 returns E(f2|f1)\n\
-                              which = 1 returns E(f1|f2)')
+            raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n' + \
+                              'which = 0 returns E(f2|f1)\n' + \
+                              'which = 1 returns E(f1|f2)')
                               
         # gathering the pdfs
         if load:
             # you need to provide the ranges for the function to compute the pdfs
             if ranges[0] is None or ranges[1] is None:
-                raise ValueError('When loading, you need to provide the ranges for each field.\
-                                  Cannot compute the range based on an histogram only.')
+                raise ValueError('When loading, you need to provide the ranges for each field.' + \
+                                  'Cannot compute the range based on an histogram only.')
             # extracting the marginal pdf of conditioned field
             pdf2 = self.extract_pdf(joint, which, ranges)
 
@@ -215,8 +215,8 @@ class Stats(Database):
         # gathering the marginal pdfs
         # you need to provide the ranges for the function to compute the pdfs
         if ranges[0] is None or ranges[1] is None:
-            raise ValueError('When loading, you need to provide the ranges for each field.\
-                                Cannot compute the range based on an histogram only.')
+            raise ValueError('When loading, you need to provide the ranges for each field.' + \
+                                'Cannot compute the range based on an histogram only.')
         H1 = self.extract_pdf(joint, 0, ranges)
         H2 = self.extract_pdf(joint, 1, ranges)
 
@@ -285,8 +285,8 @@ class Stats(Database):
         mesh_z = cp.array(self.db['vz_axis'])
 
         if stat not in ['bulk', 'interior', 'penal', 'full']:
-            raise NotImplementedError('This sub-space of statistics is not implemented.\n\
-                                    Please refer to the section 3.1.3 of my report.')
+            raise NotImplementedError('This sub-space of statistics is not implemented.\n' + \
+                                    'Please refer to the section 3.1.3 of my report.')
         elif stat == 'bulk':
             self.slice = cp.logical_and(mesh_r <= 0.1, cp.abs(mesh_z) <= 0.1) 
         elif stat == 'interior':
@@ -312,14 +312,14 @@ class Stats(Database):
     def check_penal(self, target):
         if self.stat == 'penal':
             if type(self.penal).__module__ == 'dask.array.core':
-                raise ValueError('You are probably trying to deploy workloads with \
-                                fully penalized fields. \n\
-                                Prior to your calculation, please make sure to \
-                                self.set_penal(slice(None), slice(None), slice(None), slice(None))\
-                                to effectively load penal.')
+                raise ValueError('You are probably trying to deploy workloads with' + \
+                                'fully penalized fields. \n' + \
+                                'Prior to your calculation, please make sure to' + \
+                                'self.set_penal(slice(None), slice(None), slice(None), slice(None))' + \
+                                'to effectively load penal.')
             elif self.penal.shape != target.shape:
-                raise ValueError('Penal has been incorrectly set. \n\
-                                Expecting it to have shape {}'.format(target.shape))
+                raise ValueError('Penal has been incorrectly set. \n' + \
+                                'Expecting it to have shape {}'.format(target.shape))
     '''
     The following 2 methods are class instances because of their close link
     to the database structure (1, T, P, N).
@@ -331,9 +331,9 @@ class Stats(Database):
         Useful for bulk and interior statistics
         '''
         if type(condition).__name__ != 'ndarray':
-            raise NotImplementedError('You are probably giving a real slice.\n\
-                                       This function only operating on the mesh;\
-                                       please provide a condition outputting an array (ex: field<=3)')
+            raise NotImplementedError('You are probably giving a real slice.\n' + \
+                                       'This function only operating on the mesh;' + \
+                                       'please provide a condition outputting an array (ex: field<=3)')
         return field[:, :, :, cp.where(condition)[0]]
 
     def repeat_slice(self, fields, condition):
@@ -385,10 +385,10 @@ class Stats(Database):
     def key_check(self, key):
         # checks if a key is present in the db
         if key not in self.db.keys():
-            raise ValueError('This key does not belong to the database.\n\
-                              Please check self.db.keys().')
+            raise ValueError('This key does not belong to the database.\n' + \
+                              'Please check self.db.keys().')
     
     def mean_type_check(self, type):
         if type not in ['spatial', 'temporal', 'both']:
-            raise NotImplementedError('This type of average is not implemented. Please\
-                              select one in ["spatial", "temporal", "both"].')
+            raise NotImplementedError('This type of average is not implemented. Please' + \
+                              'select one in ["spatial", "temporal", "both"].')
