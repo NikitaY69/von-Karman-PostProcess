@@ -356,7 +356,7 @@ class Stats(Database):
         # freeing memory
         del B
         cp._default_memory_pool.free_all_blocks()
-        return [min, max]
+        return [min.get(), max.get()]
 
     @staticmethod    
     def load_reshaped(pdf, n):
