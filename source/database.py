@@ -5,7 +5,6 @@ import numpy as np
 import dask
 import dask.array as da
 import pickle
-import cupy as cp
 
 class Database():
     '''
