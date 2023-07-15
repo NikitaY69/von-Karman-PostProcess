@@ -110,8 +110,9 @@ class Stats(Database):
         w *= self.penal
 
         # freeing some space on GPU memory pool        
-        del self.penal
-        cp._default_memory_pool.free_all_blocks()
+        if self.stat == 'penal':
+            del self.penal
+            cp._default_memory_pool.free_all_blocks()
 
         fields = [field1, field2, w]
 
