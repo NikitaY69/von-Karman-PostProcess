@@ -46,7 +46,7 @@ class Stats(Database):
             if self.slice is not None:
                 w = self.advanced_slice(w, self.slice)
             w *= self.penal
-        if slice is not None:
+        if self.slice is not None:
             field = self.advanced_slice(field, self.slice)
         avg = cp.average(field, axis=s, weights=w)
         if type != 'both':
