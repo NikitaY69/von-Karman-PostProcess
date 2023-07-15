@@ -350,7 +350,8 @@ class Stats(Database):
         elif self.slice is not None:
             # bulk or interior
             B = self.advanced_slice(A, self.slice)
-        B = A
+        else:
+            B = A
         min = cp.nanmin(B)
         max = cp.nanmax(B)
         # freeing memory
