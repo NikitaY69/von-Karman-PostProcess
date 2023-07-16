@@ -3,4 +3,4 @@ __pycache__/
 .ipynb_checkpoints/
 *.dat
 build/
-vkpp.egg-info/
+*.egg-info/
