@@ -8,12 +8,39 @@ import pickle
 
 class Database():
     '''
-    Please note that all the functions provided in this class were rawly written by 
+    This class manages a post-processable database dictionnary of a sfemans von-karman flow run.
+    Fields are structured into a (D, T, P, N) shape 
+    D being the number of dimensions
+    T the number of snapshots
+    P the number of angular planes
+    N the number of points per mesh
+
+    Please note that all the functions provided in the Database class were rawly written by 
     Rémi Bousquet. I have just reframed them in a more object-oriented manner.
+    For questions about the class' methods, you should directly ask him.
     '''
     def __init__(self, src, **kwargs):
         '''
-        Initiation of the database.
+        Parameters
+        ----------
+        if loading:
+            src : str
+                database dictionnary path
+        else:
+            src : str
+                complete binary data tree path
+            target : str
+                connector dir path
+            M : int
+                number of Fourier modes
+            dic : str
+                database dictionnary name
+            sfx : str
+                eventual binary data subdir
+            space : str
+                'phys' or 'fourier'
+            test_mode : bool
+                if test_mode, only adds 2 fields to the db
         '''
         try:
             # directly loading
@@ -38,7 +65,7 @@ class Database():
 
     def make(self, sfx, test_mode=False):
         '''
-        Please note that all the data dirs must be subs of the raw_path tree structure.
+        Creating the dictionnary.
         '''
         dict_name = self.dic
         space = self.space
