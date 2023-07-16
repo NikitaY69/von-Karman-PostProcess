@@ -4,15 +4,26 @@ import dask.array as da
 import cupy as cp
 
 class Stats(Database):
+    '''
+    This sub-class incorporates useful computations related to the statistics of 
+    Database fields.
+    All fields must be Database ones.
+    If a field was built on a peculiar slicing, the input must still respect the data
+    structure.
+    NOTE: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :]
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          fields input in all the class methods MUST already be transfered to CUDA.
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    '''
     def __init__(self, src, stat='full'):
         '''
-        This class incorporates useful computations related to the statistics of 
-        1-component fields.
-        Typical dimensions for 1-component fields are (1, T, P, N_P)
-        (Reminder: 3-components fields are concatenations of the base ones)
-
-        stat is the type of statistics the post-processing is being made 
-        (bulk, interior, penal or full; cf. report)
+        Parameters
+        ----------
+        src : str
+            path of database dictionnary file
+        stat : str 
+             type of statistics being made all throughout the post-processing
+             (bulk, interior, penal or full; cf. report)
         '''
         Database.__init__(self, src)
         dims = list(self.db['u']['field'].shape) # u will always be present in any db
@@ -20,23 +31,25 @@ class Stats(Database):
         self.dims = tuple(dims) # 0, 1, 2, 3 --> component, times, planes, mesh coordinates indices
         self.w = cp.array(self.db['v_weight'])
         self.set_stats(stat)    # setting the type of statistics used throughout the PP
-    '''
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    fields input in all the class methods MUST already be converted to cupy arrays.
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    '''
 
     def norm(self, field):
+        '''
+        Computes norm 2 of any more than 1 axis 0-component field.
+        '''
         return cp.linalg.norm(field, ord=2, axis=0, keepdims=True)
     
     def mean(self, field, type='spatial'):
         '''
         Computing of a mean quantity along a certain axis depending on the type of averaging.
-        field must have the same structure as typical objects of the db (ie self.dims).
-        If field was built on a peculiar slicing, the input must still respect self.dims
-        NOTE: instead of slicing with A[:, 0, :, :], go with A[:, [0], :, :]
+
+        Parameters
+        ----------
+        type : str
+             'temporal', 'spatial' or 'both'
         '''
-        self.mean_type_check(type)
+        if type not in ['spatial', 'temporal', 'both']:
+            raise NotImplementedError('This type of average is not implemented. Please' + \
+                              'select one in ["spatial", "temporal", "both"].')
         self.check_penal(field)
 
         s = 1           # T axis
@@ -57,8 +70,21 @@ class Stats(Database):
             return cp.average(avg, axis=None, weights=None)
     
     def moment(self, field, n, type='spatial', raw=True):
-        # same principle as in mean function
-        self.mean_type_check(type)
+        '''
+        Same principle as in mean function.
+
+        Parameters
+        ----------
+        n : int
+            order of moment
+        type : str
+            see Stats.mean
+        raw: bool
+            if not raw, returns <(A-<A>)^n>
+        '''
+        if type not in ['spatial', 'temporal', 'both']:
+            raise NotImplementedError('This type of average is not implemented. Please' + \
+                              'select one in ["spatial", "temporal", "both"].')
         self.check_penal(field)
 
         if raw:
@@ -76,6 +102,16 @@ class Stats(Database):
     def pdf(self, field, bins=1000, range=None, save=None):
         '''
         Computes pdf(field).
+        
+        Parameters
+        ----------
+        bins : int
+            number of values to be histogrammed
+        range :  list of floats
+            [field_min, field_max]
+            if None, automatically finds the min/max
+        save : str
+            path to save pdf
         '''
         self.check_penal(field)
 
@@ -105,6 +141,18 @@ class Stats(Database):
         '''
         Computes joint(field1, field2).
         field1 and field2 must have the same shape.
+
+        Parameters
+        ----------
+        bins : int
+            number of samples in each field; bins*bins being the number of histogrammed values
+        ranges : list of list of floats
+            [[field1_min, field1_max], [field2_min, field2_max]]
+            if [None, None], automatically finds the mins/maxs
+        log : bool
+            if True, returns log_10(joint)
+        save : str
+            path to save pdf
         NOTE: for limiting error propagation, if saving, it won't be log10.
         '''
         w = self.duplicate(self.w, field1)
@@ -146,9 +194,17 @@ class Stats(Database):
 
     def extract_pdf(self, joint, which, ranges):
         '''
-        Extracts the marginals from a joint_pdf between (f1 and f2)
-        which tells which marginal to extract:
-        0 returns f1 while 1 return f2
+        Extracts the marginals from a joint(f1, f2).
+
+        Parameters
+        ----------
+        joint : array
+            joint(f1, f2)
+        which : int
+            tells which marginal to extract:
+            0 returns f1, 1 return f2
+        ranges : list of list of floats
+            [[field1_min, field1_max], [field2_min, field2_max]]
         '''
         if which not in [0,1]:
             raise ValueError('which = 0 or 1. Assuming joint(f1, f2):\n' + \
@@ -165,6 +221,20 @@ class Stats(Database):
         '''
         Computes E(A|B) where B is the field which lies on axis 'which' -
         joint being the joint_pdf of A and B.
+
+        Parameters
+        ----------
+        joint : array
+            joint(A, B)
+        which : int
+            axis where B lies
+        bins : int
+            number of samples in each field; bins*bins being the number of histogrammed values
+        ranges : list of list of floats
+            [[field1_min, field1_max], [field2_min, field2_max]]
+        load : bool
+            if load, joint is the joint pdf
+            else, joint = [A, B]
         '''
         rev_range = {0:1, 1:0}
         if which not in [0,1]:
@@ -213,6 +283,17 @@ class Stats(Database):
         Computes pdfA*pdfB on the whole meshgrid defining joint(A,B).
         It is only possible to compute the marginal_joint_pdf based on a loaded joint_pdf.
         (because the marginal_joint_pdf has no real physical purpose but to serve the correlations)
+
+        Parameters
+        ----------
+        joint : array
+            joint(A, B)
+        bins : int
+            number of samples in each field; bins*bins being the number of histogrammed values
+        ranges : list of list of floats
+            [[field1_min, field1_max], [field2_min, field2_max]]
+        log : bool
+            if True, returns log_10(H)
         '''
         # gathering the marginal pdfs
         # you need to provide the ranges for the function to compute the pdfs
@@ -237,6 +318,20 @@ class Stats(Database):
     def correlations(self, joint, bins=1000, ranges=[None,None], log=True, load=True):
         '''
         Computes joint(A,B)/pdfA*pdfB.
+
+        Parameters
+        ----------
+        joint : array
+            joint(A, B)
+        bins : int
+            number of samples in each field; bins*bins being the number of histogrammed values
+        ranges : list of list of floats
+            [[field1_min, field1_max], [field2_min, field2_max]]
+        log : bool
+            if True, returns log_10(H)
+        load : bool
+            if load, joint is the joint pdf
+            else, joint = [A, B]
         '''
         if load:
             marginal = self.marginal_joint_pdf(joint, bins, ranges)
@@ -257,6 +352,16 @@ class Stats(Database):
         return C
         
     def duplicate(self, field, target, rechunk=False):
+        '''
+        Duplicating a field according to a target's shape.
+
+        Parameters
+        ----------
+        field : array
+            field to be duplicated
+        target : array
+            field's target shape
+        '''
         # this function is useful to reshape a field properly to
         # a target array (for the purpose of dealing with same dimensions)
         
@@ -305,6 +410,8 @@ class Stats(Database):
     def set_penal(self, s1, s2, s3, s4):
         '''
         Computing the penalization as a real indicator function on a peculiar sliced sub-space.
+
+        si is the slice on axis i.
         '''
         self.penal = self.full_penal[s1, s2, s3, s4].compute()
         self.penal = cp.array(self.penal, copy=False)
@@ -312,6 +419,9 @@ class Stats(Database):
         self.penal[self.penal!=0] = 1
     
     def check_penal(self, target):
+        '''
+        This function checks if the penalization field has been correctly set.
+        '''
         if self.stat == 'penal':
             if type(self.penal).__module__ == 'dask.array.core':
                 raise ValueError('You are probably trying to deploy workloads with' + \
@@ -328,9 +438,15 @@ class Stats(Database):
     '''
     def advanced_slice(self, field, condition):
         '''
-        This function should only be used for advanced conditional slices ON THE MESH.
-        (not base index ones).
-        Useful for bulk and interior statistics
+        This function applies a slice based on the mesh.
+        Useful for bulk and interior statistics.
+
+        Parameters
+        ----------
+        field : array of floats
+            field to be sliced
+        condition : array of bools (shape = mesh)
+            mesh points considered
         '''
         if type(condition).__name__ != 'ndarray':
             raise NotImplementedError('You are probably giving a real slice.\n' + \
@@ -339,11 +455,18 @@ class Stats(Database):
         return field[:, :, :, cp.where(condition)[0]]
 
     def repeat_slice(self, fields, condition):
+        '''
+        Applies Stats.advanced_slice on a list of fields.
+        '''
         for i, field in enumerate(fields):
             fields[i] = self.advanced_slice(field, condition)
         return fields
 
     def get_range(self, A):
+        '''
+        Finds the range of a field accordingly to the type of statistics.
+        TODO: generalize get_range for delayed arrays
+        '''
         if self.stat == 'penal':
             # penal
             self.check_penal(A)
@@ -365,6 +488,13 @@ class Stats(Database):
     def load_reshaped(pdf, n):
         '''
         Reshapes a flattened pdf coming from np.fromfile to a n*n 2d pdf.
+
+        Parameters
+        ----------
+        pdf : array
+            flattened joint pdf coming from np.fromfile
+        n : int
+            order of pdf
         '''
         H = cp.empty(shape=(n,n))
         # rebuilding
@@ -374,6 +504,9 @@ class Stats(Database):
 
     @staticmethod
     def compute_edges(bins, ranges):
+        '''
+        Computes edges of bins based on ranges.
+        '''
         edges = []
         for r in ranges:
             edges.append(np.linspace(r[0], r[1], bins+1))
@@ -381,17 +514,17 @@ class Stats(Database):
 
     @staticmethod
     def mid_points(edges):
+        '''
+        Computes the mid points of each bin.
+        '''
         n = len(edges)-1
         edges = edges.get()
         return np.array([(edges[i]+edges[i+1])/2 for i in range(n)])
 
     def key_check(self, key):
-        # checks if a key is present in the db
+        '''
+        checks if a key is present in the db.
+        '''
         if key not in self.db.keys():
             raise ValueError('This key does not belong to the database.\n' + \
-                              'Please check self.db.keys().')
-    
-    def mean_type_check(self, type):
-        if type not in ['spatial', 'temporal', 'both']:
-            raise NotImplementedError('This type of average is not implemented. Please' + \
-                              'select one in ["spatial", "temporal", "both"].')
+                              'Please check self.db.keys().')        
