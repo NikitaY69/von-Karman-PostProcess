@@ -1,4 +1,4 @@
-from database import Database
+from .database import Database
 import numpy as np
 import dask.array as da
 import dask
