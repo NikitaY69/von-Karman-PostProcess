@@ -28,17 +28,20 @@ class Database():
 
             # misc params for db creation
             sfx = kwargs.get('sfx', '')
-            dict_name = kwargs.get('dic')
-            space = kwargs.get('space', 'phys') # 'phys' or 'fourier'
-            self.make(sfx, dict_name, space)
+            self.dic = kwargs.get('dic')
+            self.space = kwargs.get('space', 'phys') # 'phys' or 'fourier'
+            test_mode = kwargs.get('test_mode', False)
+            self.make(sfx, test_mode)
 
     def load_db(self, src):
         return pickle.load(open(src, 'rb'))
 
-    def make(self, sfx, dict_name, space):
+    def make(self, sfx, test_mode=False):
         '''
         Please note that all the data dirs must be subs of the raw_path tree structure.
         '''
+        dict_name = self.dic
+        space = self.space
         global_path = self.raw_path + sfx
         dict_path = self.db_path + dict_name
         sort_with = {"r" : 0 , "z" : 1, "w":2}
@@ -63,7 +66,10 @@ class Database():
         
         # save spatio-temporal and weight axes
         self.save_axes(sorting_method, dict_path, v_axes, h_axes, v_args, h_args) 
-        for field_name in field_files:
+        end = None
+        if test_mode:
+            end = 2
+        for field_name in field_files[:end]:
             # get_field files and info
             path_to_field = join(global_path, field_name)
             files, _, (D,S,T) = self.get_field_info(path_to_field, space) 
@@ -119,6 +125,7 @@ class Database():
             except : # if the field is not yet in the dictionnary it is added
                 experiment[field_name] = {"field": field,"time_axis": t_axis}
                 print(space, 'field', field_name, "added successfuly (for the first time) to", dict_path)
+            self.experiment = experiment
             pickle.dump(experiment,open(dict_path, "wb"))
 
     @staticmethod
@@ -138,13 +145,13 @@ class Database():
             a subchunk from the file
 
         ---------------------------------------
-        note : if no view can be created memmap returns an ndarray (!!!MEMORY!!!)i
+        note : if no view can be created memmap returns an ndarray (!!!MEMORY!!!)
         ---------------------------------------
         """
-        data = np.memmap(filename, mode='r', shape=shape, dtype=dtype, offset=offset,order="F")
+        data = np.memmap(filename, mode='r', shape=shape, dtype=dtype, offset=offset,order="F") # mode='r', shape=shape, dtype=dtype, offset=offset, order="F")))
         if slice !=  None:
             return data[slice]
-        else :
+        else:
             return data
 
     @staticmethod
@@ -179,7 +186,7 @@ class Database():
         
         temp_field = []
         for i, f in enumerate(bag):
-            temp_field.append( da.stack(f).T)
+            temp_field.append(da.stack(f).T)
         temp_field = da.vstack(temp_field).T
         # at this point shape is (D*T,P,Ntot)
         field = da.empty(shape=(D,T,P,sum(N)), chunks=(1,1,1,sum(N)))
