@@ -1,7 +1,21 @@
 tests/
+vkcupp/
+logs/
+
+examples/Du/*
+!examples/Du/*.py
+!examples/Du/*.sh
+!examples/Du/misc/
+
+# python builds
 __pycache__/
 .ipynb_checkpoints/
-*.dat
 build/
 *.egg-info/
-vkcupp*
+
+# writing files
+*.dat
+*.csv
+log*
+*.out
+*.err
