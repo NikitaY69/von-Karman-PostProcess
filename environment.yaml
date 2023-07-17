@@ -1,0 +1,10 @@
+name: test
+dependencies:
+  - python=3.8.16
+  - pip
+  - jupyter
+  - numpy
+  - conda-forge::dask
+  - conda-forge::cudatoolkit=11.2
+  - conda-forge::cupy
+  - conda-forge::matplotlib
