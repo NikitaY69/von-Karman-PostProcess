@@ -5,7 +5,6 @@ import itertools
 import pandas as pd
 import ast
 import sys
-import pickle 
 
 # checking the device
 try:
