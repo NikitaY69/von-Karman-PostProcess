@@ -10,4 +10,5 @@ dependencies:
   - cudatoolkit=11.2
   - cupy
   - jupyter
+  - nbstripout
   - matplotlib
