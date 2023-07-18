@@ -16,6 +16,8 @@ build/
 # writing files
 *.dat
 *.csv
-log*
+*_out
+out_*
+log_*
 *.out
 *.err
