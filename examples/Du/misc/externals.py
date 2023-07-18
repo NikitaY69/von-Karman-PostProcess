@@ -53,7 +53,7 @@ f = data[field]['field'].rechunk((d, 1, pp.dims[2], pp.dims[3]//14))
 ranges = []
 avgs = []
 t00 = time.time()
-for t in range(2):
+for t in range(bags):
     print('####################################################################')
     print('Frame %d' %t)
     t0 = time.time()
