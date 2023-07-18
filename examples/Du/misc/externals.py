@@ -29,7 +29,7 @@ field = fields[j]
 # creating saving file
 try:
     # loading
-    pd.read_csv('miscs.csv', index_col='Stat')
+    pd.read_csv('miscs.csv')
 except FileNotFoundError:    
     # creating vanilla file
         d = {field:[[None, None] for _ in range(len(stats))] for field in fields}
@@ -95,7 +95,8 @@ tot_range = [ranges.min(), ranges.max()]
 avg = np.sum(avgs)/bags
 
 # updating saving file
-params = pd.read_csv('miscs.csv', index_col='Stat')
+params = pd.read_csv('miscs.csv')
+params.set_index('Stat', inplace=True)
 params.loc[stat][field] = ast.literal_eval(params.loc[stat][field])
 params.loc[stat][field][0] = avg
 params.loc[stat][field][1] = tot_range
