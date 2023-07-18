@@ -1,5 +1,5 @@
 tests/
-vkpp/
+vkcupp/
 logs/
 
 examples/Du/*
@@ -16,6 +16,8 @@ build/
 # writing files
 *.dat
 *.csv
-log*
+*_out
+out_*
+log_*
 *.out
 *.err
