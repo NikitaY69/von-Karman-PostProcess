@@ -11,5 +11,5 @@
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate statistics
 
-cd /mnt/beegfs/home/allaglo/sfemans_ai/nikita
+cd $PWD
 jupyter notebook --no-browser --port=8889 --ip=0.0.0.0
